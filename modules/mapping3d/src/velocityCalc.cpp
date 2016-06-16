@@ -239,8 +239,8 @@ namespace mapping3d
         y -= cameraMatrix.at<double>(1, 2);
 
         double az = atan2(y, x);
-        x *= (2 * atan(_size.width / (2 * cameraMatrix.at<double>(0, 0)))) / _size.width;
-        y *= (2 * atan(_size.height / (2 * cameraMatrix.at<double>(1, 1)))) / _size.height;
+        x = (2 * atan(x / (2 * cameraMatrix.at<double>(0, 0))));
+        y = (2 * atan(y / (2 * cameraMatrix.at<double>(1, 1))));
         double el = sqrt(x*x + y*y);
         el = CV_PI / 2.0 - el;
 
