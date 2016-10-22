@@ -17,6 +17,7 @@ set(OPENCV_MODULE_CHILDREN
   fuzzy
   hdf
   line_descriptor
+  mapping3d
   optflow
   plot
   reg
