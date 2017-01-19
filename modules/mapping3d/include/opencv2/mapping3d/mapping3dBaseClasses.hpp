@@ -83,7 +83,7 @@ class CV_EXPORTS StateCalculator : public virtual Algorithm
    * \param _state      The computed state of the point.
    * \return true if the state is computed, false otherwise
    */
-  bool computeState( double time, OutputArray _state );
+  bool computeState( double time, OutputArray _state, OutputArray _covariance = noArray() );
 
   /**
    * \brief Get the name of the specific calculation type
@@ -101,7 +101,7 @@ class CV_EXPORTS StateCalculator : public virtual Algorithm
  protected:
      size_t limit;
 
-  virtual bool computeStateImpl( double time, OutputArray _state ) = 0;
+  virtual bool computeStateImpl( double time, OutputArray _state, OutputArray _covariance = noArray() ) = 0;
   virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
       InputArray _cameraMatrix, InputArray _distortionMatrix) = 0;
 
@@ -133,7 +133,7 @@ class CV_EXPORTS PositionCalculator : public virtual StateCalculator
      * \param _state      The computed state of the point.
      * \return true if the state is computed, false otherwise
      */
-     bool computeState(OutputArray _state);
+     bool computeState(OutputArray _state, OutputArray _covariance = noArray());
 
      void addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, const Size _size,
          InputArray _cameraMatrix, InputArray _distortionMatrix);
@@ -141,7 +141,7 @@ class CV_EXPORTS PositionCalculator : public virtual StateCalculator
      static Ptr<PositionCalculator> create();
 
 protected:
-  virtual bool computeStateImpl(double time, OutputArray _state) = 0;
+  virtual bool computeStateImpl(double time, OutputArray _state, OutputArray _covariance = noArray()) = 0;
   virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
       InputArray _cameraMatrix, InputArray _distortionMatrix) = 0;
 
@@ -169,7 +169,7 @@ public:
     static Ptr<VelocityCalculator> create();
 
 protected:
-    virtual bool computeStateImpl(double time, OutputArray _state) = 0;
+    virtual bool computeStateImpl(double time, OutputArray _state, OutputArray _covariance = noArray()) = 0;
     virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
         InputArray _cameraMatrix, InputArray _distortionMatrix) = 0;
 };

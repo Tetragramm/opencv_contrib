@@ -86,9 +86,9 @@ namespace cv
         @sa  calibrateCamera PositionCalculator
         */
         CV_EXPORTS_W void calcPosition(InputArray _tvecs, InputArray _rvecs, InputArray _pts, Size _size,
-            InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state);
+            InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state, OutputArray _covariance = noArray());
         CV_EXPORTS_W void calcPosition(InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _sizes,
-            InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state);
+            InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state, OutputArray _covariance = noArray());
 
         //! @}
 
@@ -111,9 +111,9 @@ namespace cv
         @sa  calibrateCamera PositionVelocityCalculator
         */
         CV_EXPORTS_W void calcPositionVelocity(InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _times, 
-            Size _size, InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime, OutputArray _state);
+            Size _size, InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime, OutputArray _state, OutputArray _covariance = noArray());
         CV_EXPORTS_W void calcPositionVelocity(InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _times,
-            InputArray _sizes, InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime, OutputArray _state);
+            InputArray _sizes, InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime, OutputArray _state, OutputArray _covariance = noArray());
 
         //! @}
 

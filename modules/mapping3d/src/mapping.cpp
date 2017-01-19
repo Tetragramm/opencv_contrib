@@ -60,9 +60,9 @@ Ptr<StateCalculator> StateCalculator::create( const String& calculationType )
     return Ptr<StateCalculator>();
 }
 
-bool StateCalculator::computeState(double time, OutputArray _state)
+bool StateCalculator::computeState(double time, OutputArray _state, OutputArray _covariance)
 {
-  return computeStateImpl( time, _state);
+  return computeStateImpl( time, _state, _covariance);
 }
 
 void StateCalculator::addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
@@ -87,9 +87,9 @@ size_t StateCalculator::getLimit() const
 }
 
 
-bool PositionCalculator::computeState(OutputArray _state)
+bool PositionCalculator::computeState(OutputArray _state, OutputArray _covariance)
 {
-    return computeStateImpl(0, _state);
+    return computeStateImpl(0, _state, _covariance);
 }
 
 void PositionCalculator::addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, const Size _size,

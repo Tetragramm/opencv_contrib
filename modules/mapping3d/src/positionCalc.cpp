@@ -59,7 +59,7 @@ namespace mapping3d
     class PositionCalculatorImpl : public PositionCalculator
     {
     protected:
-        virtual bool computeStateImpl(double time, OutputArray _state);
+        virtual bool computeStateImpl(double time, OutputArray _state, OutputArray _covariance = noArray());
         virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
             InputArray _cameraMatrix, InputArray _distortionMatrix);
 //#ifdef TEST_EIGEN
@@ -74,7 +74,7 @@ namespace mapping3d
 //#endif
     };
 
-    bool PositionCalculatorImpl::computeStateImpl(double time, OutputArray _state)
+    bool PositionCalculatorImpl::computeStateImpl(double time, OutputArray _state, OutputArray _covariance)
     {
         _state.create(3, 1, CV_64F);
         Mat state = _state.getMat();
@@ -181,6 +181,13 @@ namespace mapping3d
         }
         
         state = (G.t()*W*F).operator cv::Mat().inv()*G.t()*W*b;
+
+        if (_covariance.needed())
+        {
+            Mat& cov = _covariance.getMatRef();
+            cov = G.t()*F / (num / 2.0);
+            multiply(cov, sum(F*state - b)(0), cov);
+        }
         return true;
 //#endif
     }
@@ -200,19 +207,13 @@ namespace mapping3d
         double x = ptsOut[0].x;
         double y = ptsOut[0].y;
 
-        x -= cameraMatrix.at<double>(0,2);
-        y -= cameraMatrix.at<double>(1,2);
-
-        double az = atan2(y, x);
-        x = (2 * atan(x / (2 * cameraMatrix.at<double>(0, 0))));
-        y = (2 * atan(y / (2 * cameraMatrix.at<double>(1, 1))));
-        double el = sqrt(x*x + y*y);
-        el = CV_PI / 2.0 - el;
-
         Mat LOS(3,1,CV_64F);
-        LOS.at<double>(0) = cos(el)*cos(az);
-        LOS.at<double>(1) = cos(el)*sin(az);
-        LOS.at<double>(2) = sin(el);
+
+        LOS.at<double>(0) = ptsOut[0].x;
+        LOS.at<double>(1) = ptsOut[0].y;
+        LOS.at<double>(2) = 1;
+        
+        LOS = cameraMatrix.inv()*LOS;
 
         Mat cameraRotation, cameraTranslation;
         Rodrigues(rvec, cameraRotation);
@@ -249,15 +250,15 @@ namespace mapping3d
     }
 
     void calcPosition(InputArray _tvecs, InputArray _rvecs, InputArray _pts,
-        Size _size, InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state)
+        Size _size, InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state, OutputArray _covariance)
     {
         std::vector<Size> sizes;
         sizes.push_back(_size);
-        calcPosition(_tvecs, _rvecs, _pts, sizes, _cameraMatrices, _distortionMatrices, _state);
+        calcPosition(_tvecs, _rvecs, _pts, sizes, _cameraMatrices, _distortionMatrices, _state, _covariance);
     }
 
     void calcPosition(InputArray _tvecs, InputArray _rvecs, InputArray _pts,
-        InputArray _sizes, InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state)
+        InputArray _sizes, InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state, OutputArray _covariance)
     {
         Ptr<PositionCalculator> pPC = PositionCalculator::create();
 
@@ -310,7 +311,7 @@ namespace mapping3d
                 sz = sizes.at<Size>(i);
             pPC->addMeasurement(tvecs[i], rvecs[i], pts.at<Point2f>(i), sz, camera, dist);
         }
-        pPC->computeState(_state);
+        pPC->computeState(_state, _covariance);
     }
 
 }/* namespace mapping3d */
