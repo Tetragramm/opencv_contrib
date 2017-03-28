@@ -1156,9 +1156,16 @@ class CV_EXPORTS TrackerMedianFlow : public Tracker
  public:
   struct CV_EXPORTS Params
   {
-    Params();
-    int pointsInGrid; //!<square root of number of keypoints used; increase it to trade
-                      //!<accurateness for speed; default value is sensible and recommended
+    Params(); //!<default constructor
+              //!<note that the default values of parameters are recommended for most of use cases
+    int pointsInGrid;      //!<square root of number of keypoints used; increase it to trade
+                           //!<accurateness for speed
+    cv::Size winSize;      //!<window size parameter for Lucas-Kanade optical flow
+    int maxLevel;          //!<maximal pyramid level number for Lucas-Kanade optical flow
+    TermCriteria termCriteria; //!<termination criteria for Lucas-Kanade optical flow
+    cv::Size winSizeNCC;   //!<window size around a point for normalized cross-correlation check
+    double maxMedianLengthOfDisplacementDifference; //!<criterion for loosing the tracked object
+
     void read( const FileNode& /*fn*/ );
     void write( FileStorage& /*fs*/ ) const;
   };
@@ -1212,9 +1219,9 @@ public:
   -   "CN" -- Color-names feature
   */
   enum MODE {
-    GRAY = (1u << 0),
-    CN = (1u << 1),
-    CUSTOM = (1u << 2)
+    GRAY   = (1 << 0),
+    CN     = (1 << 1),
+    CUSTOM = (1 << 2)
   };
 
   struct CV_EXPORTS Params
@@ -1245,8 +1252,8 @@ public:
     bool compress_feature;        //!<  activate the pca method to compress the features
     int max_patch_size;           //!<  threshold for the ROI size
     int compressed_size;          //!<  feature size after compression
-    unsigned int desc_pca;        //!<  compressed descriptors of TrackerKCF::MODE
-    unsigned int desc_npca;       //!<  non-compressed descriptors of TrackerKCF::MODE
+    int desc_pca;        //!<  compressed descriptors of TrackerKCF::MODE
+    int desc_npca;       //!<  non-compressed descriptors of TrackerKCF::MODE
   };
 
   virtual void setFeatureExtractor(void(*)(const Mat, const Rect, Mat&), bool pca_func = false);
@@ -1362,42 +1369,6 @@ protected:
   //!<  default algorithm for the tracking method.
   String defaultAlgorithm;
 };
-
-class ROISelector {
-public:
-  Rect2d select(Mat img, bool fromCenter = true);
-  Rect2d select(const cv::String& windowName, Mat img, bool showCrossair = true, bool fromCenter = true);
-  void select(const cv::String& windowName, Mat img, std::vector<Rect2d> & boundingBox, bool fromCenter = true);
-
-  struct handlerT{
-    // basic parameters
-    bool isDrawing;
-    Rect2d box;
-    Mat image;
-
-    // parameters for drawing from the center
-    bool drawFromCenter;
-    Point2f center;
-
-    // initializer list
-    handlerT() : isDrawing(false), drawFromCenter(true) {};
-  }selectorParams;
-
-  // to store the tracked objects
-  std::vector<handlerT> objects;
-
-private:
-  static void mouseHandler(int event, int x, int y, int flags, void *param);
-  void opencv_mouse_callback(int event, int x, int y, int, void *param);
-
-  // save the keypressed characted
-  int key;
-};
-
-Rect2d CV_EXPORTS_W selectROI(Mat img, bool fromCenter = true);
-Rect2d CV_EXPORTS_W selectROI(const cv::String& windowName, Mat img, bool showCrossair = true, bool fromCenter = true);
-void CV_EXPORTS_W selectROI(const cv::String& windowName, Mat img, std::vector<Rect2d> & boundingBox, bool fromCenter = true);
-
 
 /************************************ Multi-Tracker Classes ---By Tyan Vladimir---************************************/
 
