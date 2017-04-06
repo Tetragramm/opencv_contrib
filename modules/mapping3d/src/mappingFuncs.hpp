@@ -41,8 +41,4 @@
 
 #include "precomp.hpp"
 
-//#ifdef TEST_EIGEN
-//Eigen::Array2d getAzEl(const Eigen::Array3d& from, const Eigen::Array3d& to);
-//#else
 cv::Point2d getAzEl(const cv::Mat& from, const cv::Mat& to);
-//#endif

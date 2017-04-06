@@ -65,10 +65,10 @@ bool StateCalculator::computeState(double time, OutputArray _state, OutputArray 
   return computeStateImpl( time, _state, _covariance);
 }
 
-void StateCalculator::addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
-    InputArray _cameraMatrix, InputArray _distortionMatrix)
+void StateCalculator::addMeasurement( InputArray _tvec, InputArray _rvec, const Point2f _pt, double time,
+									  InputArray _cameraMatrix, InputArray _distortionMatrix )
 {
-    addMeasurementImpl(_tvec, _rvec, _pt, time, _size, _cameraMatrix, _distortionMatrix);
+	addMeasurementImpl( _tvec, _rvec, _pt, time, _cameraMatrix, _distortionMatrix );
 }
 
 String StateCalculator::getClassName() const
@@ -92,10 +92,10 @@ bool PositionCalculator::computeState(OutputArray _state, OutputArray _covarianc
     return computeStateImpl(0, _state, _covariance);
 }
 
-void PositionCalculator::addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, const Size _size,
-    InputArray _cameraMatrix, InputArray _distortionMatrix)
+void PositionCalculator::addMeasurement( InputArray _tvec, InputArray _rvec, const Point2f _pt,
+										 InputArray _cameraMatrix, InputArray _distortionMatrix )
 {
-    addMeasurementImpl(_tvec, _rvec, _pt, 0, _size, _cameraMatrix, _distortionMatrix);
+	addMeasurementImpl( _tvec, _rvec, _pt, 0, _cameraMatrix, _distortionMatrix );
 }
 
 } /* namespace saliency */

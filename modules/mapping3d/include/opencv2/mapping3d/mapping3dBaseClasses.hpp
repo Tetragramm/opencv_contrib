@@ -52,7 +52,6 @@
 #include <complex>
 #include <deque>
 
-//#define TEST_EIGEN
 
 namespace cv
 {
@@ -91,8 +90,8 @@ class CV_EXPORTS StateCalculator : public virtual Algorithm
    */
   String getClassName() const;
 
-  void addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
-      InputArray _cameraMatrix, InputArray _distortionMatrix);
+  void addMeasurement( InputArray _tvec, InputArray _rvec, const Point2f _pt, double time,
+					   InputArray _cameraMatrix, InputArray _distortionMatrix );
 
   void setLimit(size_t _limit);
 
@@ -102,8 +101,8 @@ class CV_EXPORTS StateCalculator : public virtual Algorithm
      size_t limit;
 
   virtual bool computeStateImpl( double time, OutputArray _state, OutputArray _covariance = noArray() ) = 0;
-  virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
-      InputArray _cameraMatrix, InputArray _distortionMatrix) = 0;
+  virtual void addMeasurementImpl( InputArray _tvec, InputArray _rvec, const Point2f _pt, double time,
+                                   InputArray _cameraMatrix, InputArray _distortionMatrix ) = 0;
 
   String className;
 };
@@ -120,7 +119,6 @@ class CV_EXPORTS PositionCalculator : public virtual StateCalculator
      @param _tvecs Vector of camera translation vectors, ie. from estimatePose.
      @param _rvecs Vector of camera rotation angles, ie. from estimatePose.  Same length as _tvecs.
      @param _pts Vector of 2D object locations within the images, Point2f format, Same length as _tvecs.
-     @param _sizes One Size or Vector of image sizes, in pixels
      @param _cameraMatrices One Mat or Vector of camera matrices, ie. from calibrateCamera
      @param _distortionMatrices One Mat or Vector of distortion matrices, ie. from calibrateCamera
      @param _location the 3D location of the object, relative to (0,0,0), a Mat.
@@ -135,15 +133,15 @@ class CV_EXPORTS PositionCalculator : public virtual StateCalculator
      */
      bool computeState(OutputArray _state, OutputArray _covariance = noArray());
 
-     void addMeasurement(InputArray _tvec, InputArray _rvec, const Point2f _pt, const Size _size,
-         InputArray _cameraMatrix, InputArray _distortionMatrix);
+	 void addMeasurement( InputArray _tvec, InputArray _rvec, const Point2f _pt,
+						  InputArray _cameraMatrix, InputArray _distortionMatrix );
 
      static Ptr<PositionCalculator> create();
 
 protected:
   virtual bool computeStateImpl(double time, OutputArray _state, OutputArray _covariance = noArray()) = 0;
-  virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
-      InputArray _cameraMatrix, InputArray _distortionMatrix) = 0;
+  virtual void addMeasurementImpl( InputArray _tvec, InputArray _rvec, const Point2f _pt, double time,
+                                   InputArray _cameraMatrix, InputArray _distortionMatrix ) = 0;
 
 };
 
@@ -158,7 +156,6 @@ public:
     @param _tvecs Vector of camera translation vectors, ie. from estimatePose.
     @param _rvecs Vector of camera rotation angles, ie. from estimatePose.  Same length as _tvecs.
     @param _pts Vector of 2D object locations within the images, Point2f format, Same length as _tvecs.
-    @param _sizes One Size or Vector of image sizes, in pixels
     @param _cameraMatrices One Mat or Vector of camera matrices, ie. from calibrateCamera
     @param _distortionMatrices One Mat or Vector of distortion matrices, ie. from calibrateCamera
     @param _location the 3D location of the object, relative to (0,0,0), a Mat.
@@ -170,8 +167,8 @@ public:
 
 protected:
     virtual bool computeStateImpl(double time, OutputArray _state, OutputArray _covariance = noArray()) = 0;
-    virtual void addMeasurementImpl(InputArray _tvec, InputArray _rvec, const Point2f _pt, double time, const Size _size,
-        InputArray _cameraMatrix, InputArray _distortionMatrix) = 0;
+    virtual void addMeasurementImpl( InputArray _tvec, InputArray _rvec, const Point2f _pt, double time,
+                                     InputArray _cameraMatrix, InputArray _distortionMatrix ) = 0;
 };
 
 //! @}

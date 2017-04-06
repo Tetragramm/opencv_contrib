@@ -78,17 +78,15 @@ namespace cv
         @param _tvecs Vector of camera translation vectors, ie. from estimatePose.
         @param _rvecs Vector of camera rotation angles, ie. from estimatePose.  Same length as _tvecs.
         @param _pts Vector of 2D object locations within the images, Point2f format, Same length as _tvecs.
-        @param _sizes One Size or Vector of image sizes, in pixels
         @param _cameraMatrices One Mat or Vector of camera matrices, ie. from calibrateCamera
         @param _distortionMatrices One Mat or Vector of distortion matrices, ie. from calibrateCamera
         @param _location the 3D location of the object, relative to (0,0,0), a Mat.
 
         @sa  calibrateCamera PositionCalculator
         */
-        CV_EXPORTS_W void calcPosition(InputArray _tvecs, InputArray _rvecs, InputArray _pts, Size _size,
-            InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state, OutputArray _covariance = noArray());
-        CV_EXPORTS_W void calcPosition(InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _sizes,
-            InputArray _cameraMatrices, InputArray _distortionMatrices, OutputArray _state, OutputArray _covariance = noArray());
+		CV_EXPORTS_W void calcPosition( InputArray _tvecs, InputArray _rvecs, InputArray _pts,
+										InputArray _cameraMatrices, InputArray _distortionMatrices,
+										OutputArray _state, OutputArray _covariance = noArray() );
 
         //! @}
 
@@ -103,20 +101,48 @@ namespace cv
         @param _rvecs Vector of camera rotation angles, ie. from estimatePose.  Same length as _tvecs.
         @param _pts Vector of 2D object locations within the images, Point2f format, Same length as _tvecs.
         @param _times Vector of measurement times, doubles, Same length ast _tvecs.
-        @param _sizes One Size or Vector of image sizes, in pixels
         @param _cameraMatrices One Mat or Vector of camera matrices, ie. from calibrateCamera
         @param _distortionMatrices One Mat or Vector of distortion matrices, ie. from calibrateCamera
         @param _location the 3D location of the object, relative to (0,0,0), a Mat.
 
         @sa  calibrateCamera PositionVelocityCalculator
         */
-        CV_EXPORTS_W void calcPositionVelocity(InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _times, 
-            Size _size, InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime, OutputArray _state, OutputArray _covariance = noArray());
-        CV_EXPORTS_W void calcPositionVelocity(InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _times,
-            InputArray _sizes, InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime, OutputArray _state, OutputArray _covariance = noArray());
+		CV_EXPORTS_W void calcPositionVelocity( InputArray _tvecs, InputArray _rvecs, InputArray _pts, InputArray _times,
+												InputArray _cameraMatrices, InputArray _distortionMatrices, double calcTime,
+												OutputArray _state, OutputArray _covariance = noArray() );
 
-        //! @}
+		/** @brief Calculates the 3d translation and rotation of an object from a model based on views of points from multiple cameras.
 
+		This function calculates the combination of measurements from one or more cameras to into the 3D translation and rotation of an object
+    	 based on the 3d model and the observed markers.
+
+		@param imagePointsPerView is a vector<vector<Point2f>>.  The outer vector has one inner vector for each model point, and the inner vectors
+    		have one Point2f that is the position of that point in each camera's view. (negative values are ignored and mean the point was not seen in that camera.
+		@param objectPoints is a vector<Point3f> of the 3d model points.
+		@param _cameraMatrices One Mat or Vector of camera matrices, ie. from calibrateCamera
+		@param _distortionMatrices One Mat or Vector of distortion matrices, ie. from calibrateCamera
+		@param _tvecs Vector of camera translation vectors, ie. from estimatePose.
+		@param _rvecs Vector of camera rotation angles, ie. from estimatePose.  Same length as _tvecs.
+		@param _pts Vector of 2D object locations within the images, Point2f format, Same length as _tvecs.
+		@param _times Vector of measurement times, doubles, Same length ast _tvecs.
+		@param _location the 3D location of the object, relative to (0,0,0), a Mat.
+		*/
+		CV_EXPORTS_W void calcObjectPosition( InputArrayOfArrays imagePointsPerView, InputArray objectPoints, InputArray _cameraMatrices,
+											  InputArray _distortionMatrices, InputArray _tvecs, InputArray _rvecs,
+											  OutputArray tvecObject, OutputArray rvecObject );
+
+		/** @brief Calculates the 3d translation and rotation of an object from a model based on a set of corresponding 3d points.
+
+		This function calculates the rotation and translation of 3d point sets.
+
+		@param pointsFound is a vector<Point3f> of the 3d points to be registered to the model.
+		@param pointsModel is a vector<Point3f> of the 3d model points.
+		@param tvecs Output Mat containing the translation vector from the model.
+		@param rvecs Output Mat containing the rotation vector from the model.
+		*/
+		CV_EXPORTS_W void register3dPoints( InputArray pointsFound, InputArray pointsModel,
+											OutputArray tvec, OutputArray rvec );
+		//! @}
     }
 }
 

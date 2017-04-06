@@ -41,15 +41,6 @@
 
 #include "mappingFuncs.hpp"
 
-//#ifdef TEST_EIGEN
-//Eigen::Array2d getAzEl(const Eigen::Array3d& from, const Eigen::Array3d& to)
-//{
-//    Eigen::Array2d ret;
-//    ret(0) = atan2((to(1) - from(1)), (to(0) - from(0)));
-//    ret(1) = asin((to(2) - from(2)) / sqrt((to - from).square().sum()));
-//    return ret;
-//}
-//#else
 cv::Point2d getAzEl(const cv::Mat& from, const cv::Mat& to)
 {
     cv::Point2d ret;
