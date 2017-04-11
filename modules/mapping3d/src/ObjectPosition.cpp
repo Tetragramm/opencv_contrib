@@ -41,6 +41,7 @@
 
 #include "precomp.hpp"
 #include "mappingFuncs.hpp"
+#include <iostream>
 
 namespace cv
 {
@@ -49,7 +50,7 @@ namespace cv
 		void findCentroid( InputArray pointsA, OutputArray centroid )
 		{
 			using std::vector;
-			centroid.create( 1, 3, CV_32F );
+			centroid.create( 1, 3, CV_64F );
 			Mat& centroid_state = centroid.getMatRef();
 			centroid_state.setTo( 0 );
 			vector<Mat> states;
@@ -74,31 +75,36 @@ namespace cv
 			vector<Mat> states;
 			pointsFound.getMatVector( states );
 			vector<Mat> objPoints;
-			pointsModel.getMatVector( states );
+			pointsModel.getMatVector( objPoints );
 
 			int numPoints = pointsFound.total();
-			Mat H( 3, 3, CV_32F );
+			Mat H( 3, 3, CV_64F );
 			H.setTo( 0 );
 			for( unsigned int i = 0; i < numPoints; i++ )
 			{
 				Mat centered_state, centered_obj;
 				subtract( states[i], centroid_state, centered_state );
 				subtract( objPoints[i], centroid_obj, centered_obj );
-				add( H, centered_state*centered_obj.t(), H );
+				Mat test = centered_obj.t()*centered_state;
+				add( H, test, H );
 			}
 
 			Mat U, S, V;
 			SVDecomp( H, S, U, V );
-			Mat R = V*U.t();
+			multiply( V.row( 0 ), -1, V.row( 0 ) );
+			multiply( V.row( 2 ), -1, V.row( 2 ) );
+			multiply( U.col( 0 ), -1, U.col( 0 ) );
+			Mat R = V.t()*U.t();
 			if( determinant( R ) < 0.0 )
 			{
 				multiply( R.col( 2 ), -1, R.col( 2 ) );
 			}
 			Rodrigues( R, rvec );
 
-			tvec.create( 3, 1, CV_32F );
+			tvec.create( 3, 1, CV_64F );
 			Mat& t = tvec.getMatRef();
-			add( -R*centroid_state, centroid_obj, t );
+			Mat temp = (-R*centroid_obj.t());
+			add( temp, centroid_state.t(), t );
 		}
 
 		void calcObjectPosition( InputArrayOfArrays imagePointsPerView, InputArray objectPoints,
