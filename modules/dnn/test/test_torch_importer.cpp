@@ -82,7 +82,7 @@ static void runTorchNet(String prefix, String outLayerName = "",
     ASSERT_TRUE(importer != NULL);
     importer->populateNet(net);
 
-    Blob inp, outRef;
+    Mat inp, outRef;
     ASSERT_NO_THROW( inp = readTorchBlob(_tf(prefix + "_input" + suffix), isBinary) );
     ASSERT_NO_THROW( outRef = readTorchBlob(_tf(prefix + "_output" + suffix), isBinary) );
 
@@ -90,14 +90,14 @@ static void runTorchNet(String prefix, String outLayerName = "",
     net.forward();
     if (outLayerName.empty())
         outLayerName = net.getLayerNames().back();
-    Blob out = net.getBlob(outLayerName);
+    Mat out = net.getBlob(outLayerName);
 
     normAssert(outRef, out);
 
     if (check2ndBlob)
     {
-        Blob out2 = net.getBlob(outLayerName + ".1");
-        Blob ref2 = readTorchBlob(_tf(prefix + "_output_2" + suffix), isBinary);
+        Mat out2 = net.getBlob(outLayerName + ".1");
+        Mat ref2 = readTorchBlob(_tf(prefix + "_output_2" + suffix), isBinary);
         normAssert(out2, ref2);
     }
 }
@@ -169,16 +169,16 @@ TEST(Torch_Importer, ENet_accuracy)
     }
 
     Mat sample = imread(_tf("street.png", false));
-    cv::cvtColor(sample, sample, cv::COLOR_BGR2RGB);
-    sample.convertTo(sample, CV_32F, 1/255.0);
-    dnn::Blob inputBlob = dnn::Blob::fromImages(sample);
+    Mat inputBlob = blobFromImage(sample, 1./255);
 
     net.setBlob("", inputBlob);
     net.forward();
-    dnn::Blob out = net.getBlob(net.getLayerNames().back());
-
-    Blob ref = blobFromNPY(_tf("torch_enet_prob.npy", false));
-    normAssert(ref, out);
+    Mat out = net.getBlob(net.getLayerNames().back());
+    Mat ref = blobFromNPY(_tf("torch_enet_prob.npy", false));
+    // Due to numerical instability in Pooling-Unpooling layers (indexes jittering)
+    // thresholds for ENet must be changed. Accuracy of resuults was checked on
+    // Cityscapes dataset and difference in mIOU with Torch is 10E-4%
+    normAssert(ref, out, "", 0.00044, 0.44);
 }
 
 }
