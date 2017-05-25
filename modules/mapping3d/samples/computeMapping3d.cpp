@@ -10,7 +10,7 @@
  //                           License Agreement
  //                For Open Source Computer Vision Library
  //
- // Copyright (C) 2013, OpenCV Foundation, all rights reserved.
+ // Copyright (C) 2017, OpenCV Foundation, all rights reserved.
  // Third party copyrights are property of their respective owners.
  //
  // Redistribution and use in source and binary forms, with or without modification,
@@ -40,150 +40,251 @@
  //M*/
 
 #include <opencv2/core/utility.hpp>
-#include <opencv2/saliency.hpp>
-#include <opencv2/highgui.hpp>
+#include <opencv2/mapping3d.hpp>
 #include <iostream>
 
 using namespace std;
 using namespace cv;
-using namespace saliency;
+using namespace mapping3d;
 
 static const char* keys =
-{ "{@saliency_algorithm | | Saliency algorithm <saliencyAlgorithmType.[saliencyAlgorithmTypeSubType]> }"
-    "{@video_name      | | video name            }"
-    "{@start_frame     |1| Start frame           }"
-    "{@training_path   |1| Path of the folder containing the trained files}" };
+{ "{@sample_path   |1| Path of the folder containing the sample files}" };
 
 static void help()
 {
-  cout << "\nThis example shows the functionality of \"Saliency \""
-       "Call:\n"
-       "./example_saliency_computeSaliency <saliencyAlgorithmSubType> <video_name> <start_frame> \n"
-       << endl;
+	cout << "\nThis example shows the functionality of \"Mapping3d \""
+		"Call:\n"
+		"./example_mapping3d_computeMapping3d <sample_path> \n"
+		<< endl;
+}
+
+void readImagesAndExtrinsics(vector<Mat>& images, vector<Mat>& rBuffer, vector<Mat>& tBuffer)
+{
+	for( int i = 1, j = 0; i < numFrames; i += 10, ++j )
+	{
+		std::stringstream str1, str2;
+		str1 << sample_path << i << ".png";
+		str2 << "Pose_Matrix_" << i;
+		cout << "Reading File " << i << ".png" << "\n";
+		//Create the File path and read in the image
+		imgBuffer.push_back( imread( str1.str() ) );
+		Mat pose, rvec;
+		//Read in the OpenGL Pose
+		fs[str2.str()] >> pose;
+
+		//Convert the OpenGL Pose to the OpenCV system
+		//A few operations here can probably be removed,
+		//but this isn't the point of the example.
+		//I had it running through the VIZ module for visualization,
+		//and that requires stopping in the middle because it uses yet
+		//ANOTHER coordinate system.
+		Mat ident;
+		ident.create( 3, 3, pose.type() );
+		setIdentity( ident, -1 );
+		ident.at<float>( 0, 0 ) = 1;
+
+		pose( Rect( 0, 0, 3, 3 ) ) = ( ident * pose( Rect( 0, 0, 3, 3 ) ).t() ).t();
+
+		Rodrigues( pose( Rect( 0, 0, 3, 3 ) ), rvec );
+		rBuffer.push_back( rvec.clone() );
+		tBuffer.push_back( pose( Rect( 3, 0, 1, 3 ) ).clone() );
+
+		Mat R;
+		Rodrigues( rBuffer[j], R );
+		R = R.t();
+		tBuffer[j] = ( -R * tBuffer[j] );
+		Rodrigues( R, rBuffer[j] );
+
+		//Convert to the double type.
+		tBuffer[j].convertTo( tBuffer[j], CV_64F );
+		rBuffer[j].convertTo( rBuffer[j], CV_64F );
+	}
+}
+
+void writePLY( Mat PC, const char* FileName )
+{
+	std::ofstream outFile( FileName );
+
+	if( !outFile )
+	{
+		//cerr << "Error opening output file: " << FileName << "!" << endl;
+		printf( "Error opening output file: %s!\n", FileName );
+		exit( 1 );
+	}
+
+	////
+	// Header
+	////
+
+	const int pointNum = (int) PC.rows;
+	const int vertNum = (int) PC.cols;
+
+	outFile << "ply" << std::endl;
+	outFile << "format ascii 1.0" << std::endl;
+	outFile << "element vertex " << pointNum << std::endl;
+	outFile << "property float x" << std::endl;
+	outFile << "property float y" << std::endl;
+	outFile << "property float z" << std::endl;
+	if( vertNum == 6 )
+	{
+		outFile << "property float nx" << std::endl;
+		outFile << "property float ny" << std::endl;
+		outFile << "property float nz" << std::endl;
+	}
+	outFile << "end_header" << std::endl;
+
+	////
+	// Points
+	////
+
+	for( int pi = 0; pi < pointNum; ++pi )
+	{
+		const float* point = PC.ptr<float>( pi );
+
+		outFile << point[0] << " " << point[1] << " " << point[2];
+
+		if( vertNum == 6 )
+		{
+			outFile << " " << point[3] << " " << point[4] << " " << point[5];
+		}
+
+		outFile << std::endl;
+	}
+
+	return;
 }
 
 int main( int argc, char** argv )
 {
-  CommandLineParser parser( argc, argv, keys );
+	CommandLineParser parser( argc, argv, keys );
 
-  String saliency_algorithm = parser.get<String>( 0 );
-  String video_name = parser.get<String>( 1 );
-  int start_frame = parser.get<int>( 2 );
-  String training_path = parser.get<String>( 3 );
+	String sample_path = parser.get<String>( 0 );
 
-  if( saliency_algorithm.empty() || video_name.empty() )
-  {
-    help();
-    return -1;
-  }
+	if( sample_path.empty() )
+	{
+	help();
+	return -1;
+	}
 
-  //open the capture
-  VideoCapture cap;
-  cap.open( video_name );
-  cap.set( CAP_PROP_POS_FRAMES, start_frame );
+	//Open the xml file containing the camera intrinsic and extrinsics.
+	FileStorage fs;
+	fs.open( sample_path+"Poses.xml", FileStorage::FORMAT_AUTO );
 
-  if( !cap.isOpened() )
-  {
-    help();
-    cout << "***Could not initialize capturing...***\n";
-    cout << "Current parameter's value: \n";
-    parser.printMessage();
-    return -1;
-  }
+	//Read in the camera matrix
+	Mat cameraMatrix;
+	fs["Camera_Matrix"] >> cameraMatrix;
+	cameraMatrix.convertTo( cameraMatrix, CV_64F );
 
-  Mat frame;
+	//Read in the number of frames
+	int numFrames;
+	fs["nr_of_frames"] >> numFrames;
 
-  //instantiates the specific Saliency
-  Ptr<Saliency> saliencyAlgorithm = Saliency::create( saliency_algorithm );
+	//Declare the vectors to hold the images and extrinsics
+	vector<Mat> imgBuffer, rBuffer, tBuffer;
+	readImagesAndExtrinsics( imgBuffer, rBuffer, tBuffer );
 
-  if( saliencyAlgorithm == NULL )
-  {
-    cout << "***Error in the instantiation of the saliency algorithm...***\n";
-    return -1;
-  }
+	//These get re-used many times.  Save the allocations.
+	vector<Mat> keyFramePyr, dstFramePyr;
 
-  Mat binaryMap;
-  Mat image;
+	//Declare the output variable
+	Mat state, PCL( 1, 3, CV_64F );
+	PCL.setTo( 0 );
 
-  cap >> frame;
-  if( frame.empty() )
-  {
-    return 0;
-  }
+	//Timing variables
+	long long timeTotal = 0;
+	long long ptsTotal = 0;
 
-  frame.copyTo( image );
+	//For each image...
+	for( int i = 0; i < imgBuffer.size(); i += 1 )
+	{
+		//Declare variables and ORB detector
+		vector<Point2f> keyFramePts, dstFramePts;
+		vector<vector<Point2f>> trackingPts;
+		Ptr<ORB> pORB = ORB::create( 10000, 1.2, 1 );
+		vector<KeyPoint> kps;
 
-  if( saliency_algorithm.find( "SPECTRAL_RESIDUAL" ) == 0 )
-  {
-    Mat saliencyMap;
-    if( saliencyAlgorithm->computeSaliency( image, saliencyMap ) )
-    {
-      StaticSaliencySpectralResidual spec;
-      spec.computeBinaryMap( saliencyMap, binaryMap );
+		//Detect keypoints in the image
+		pORB->detect( imgBuffer[i], kps );
 
-      imshow( "Saliency Map", saliencyMap );
-      imshow( "Original Image", image );
-      imshow( "Binary Map", binaryMap );
-      waitKey( 0 );
-    }
+		//Start track of the poses
+		vector<Mat> localt;
+		vector<Mat> localr;
+		localt.push_back( tBuffer[i] );
+		localr.push_back( rBuffer[i] );
 
-  }
-  else if( saliency_algorithm.find( "BING" ) == 0 )
-  {
-    if( training_path.empty() )
-    {
+		//Save all the key points detected
+		for( KeyPoint& p : kps )
+		{
+			keyFramePts.push_back( p.pt );
+			trackingPts.push_back( vector<Point2f>( 1, p.pt ) );
+		}
 
-      cout << "Path of trained files missing! " << endl;
-      return -1;
-    }
+		//Build Optical flow pyramid to save time
+		buildOpticalFlowPyramid( imgBuffer[i], keyFramePyr, Size( 11, 11 ), 3 );
+		
+		//For every other image...
+		for( int j = 0; j < imgBuffer.size(); j++ )
+		{
+			if( j != i )
+			{
+				//Save the pose
+				localt.push_back( tBuffer[j] );
+				localr.push_back( rBuffer[j] );
 
-    else
-    {
-      vector<Vec4i> saliencyMap;
-      saliencyAlgorithm.dynamicCast<ObjectnessBING>()->setTrainingPath( training_path );
-      saliencyAlgorithm.dynamicCast<ObjectnessBING>()->setBBResDir( training_path + "/Results" );
+				//And track the points from the outer loop image to the inner loop image
+				Mat status, err;
+				buildOpticalFlowPyramid( imgBuffer[j], dstFramePyr, Size( 11, 11 ), 3 );
+				if( dstFramePts.size() == keyFramePts.size() )
+					cv::calcOpticalFlowPyrLK( keyFramePyr, dstFramePyr, keyFramePts, dstFramePts, status, err, Size( 11, 11 ), 3, TermCriteria( TermCriteria::COUNT + TermCriteria::EPS, 30, 0.01 ), OPTFLOW_USE_INITIAL_FLOW );
+				else
+					cv::calcOpticalFlowPyrLK( keyFramePyr, dstFramePyr, keyFramePts, dstFramePts, status, err, Size( 11, 11 ), 3 );
+				
+				//For every point that was sucessfully tracked, save it.
+				//Otherwise remove that point from the saved list.
+				for( int idx = 0, idx2 = 0; idx < keyFramePts.size(); ++idx, ++idx2 )
+				{
+					if( status.at<uchar>( idx2 ) == 1 )
+						trackingPts[idx].push_back( dstFramePts[idx2] );
+					else
+					{
+						trackingPts.erase( trackingPts.begin() + idx );
+						keyFramePts.erase( keyFramePts.begin() + idx );
+						idx--;
+					}
+				}
+			}
+		}
 
-      if( saliencyAlgorithm->computeSaliency( image, saliencyMap ) )
-      {
-        std::cout << "Objectness done" << std::endl;
-      }
-    }
+		auto start = high_resolution_clock::now();
+		for( int idx = 0; idx < trackingPts.size(); ++idx )
+		{
+			//Using the list of poses, and one set of points (it's location in each frame)
+			//along with the camera intrinsics, calculate the 3d position and uncertainty.
+			Mat cov;
+			mapping3d::calcPosition( localt, localr, trackingPts[idx], cameraMatrix, noArray(), state, cov );
+			//If the worst uncertainty is small, add it to the point cloud, otherwise erase it.
+			double min, max;
+			minMaxIdx( cov, &min, &max );
+			if( MAX( abs( max ), abs( min ) ) < 0.003 )
+				vconcat( PCL, state.t(), PCL );
+			else
+			{
+				trackingPts.erase( trackingPts.begin() + idx );
+				keyFramePts.erase( keyFramePts.begin() + idx );
+				idx--;
+			}
+		}
+		auto stop = high_resolution_clock::now();
+		timeTotal += duration_cast<nanoseconds>( stop - start ).count();
+		ptsTotal += trackingPts.size();
+	}
+	cout << timeTotal / 1.0e9 << " seconds for " << ptsTotal << " points through 10 frames.\n";
+	cout << "This excludes the time spent on optical flow and is just the time calculating 3d positions.";
 
-  }
-  else if( saliency_algorithm.find( "BinWangApr2014" ) == 0 )
-  {
+	//Reshape the Point Cloud Matrix and print it to a PLY file.
+	PCL = PCL.reshape( 3, PCL.rows );
+	string fileName = sample_path + "Couch_Cloud.ply";
+	writePLY( PCL, fileName.c_str() );
 
-    //Ptr<Size> size = Ptr<Size>( new Size( image.cols, image.rows ) );
-    saliencyAlgorithm.dynamicCast<MotionSaliencyBinWangApr2014>()->setImagesize( image.cols, image.rows );
-    saliencyAlgorithm.dynamicCast<MotionSaliencyBinWangApr2014>()->init();
-
-    bool paused = false;
-    for ( ;; )
-    {
-      if( !paused )
-      {
-
-        cap >> frame;
-        cvtColor( frame, frame, COLOR_BGR2GRAY );
-
-        Mat saliencyMap;
-        if( saliencyAlgorithm->computeSaliency( frame, saliencyMap ) )
-        {
-          std::cout << "current frame motion saliency done" << std::endl;
-        }
-
-        imshow( "image", frame );
-        imshow( "saliencyMap", saliencyMap * 255 );
-      }
-
-      char c = (char) waitKey( 2 );
-      if( c == 'q' )
-        break;
-      if( c == 'p' )
-        paused = !paused;
-
-    }
-  }
-
-  return 0;
+	return 0;
 }
