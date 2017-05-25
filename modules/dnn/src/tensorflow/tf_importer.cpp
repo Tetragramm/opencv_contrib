@@ -51,7 +51,7 @@ struct Pin
     int blobIndex;
 };
 
-void blobShapeFromTensor(const tensorflow::TensorProto &tensor, std::vector<int>& shape)
+void blobShapeFromTensor(const tensorflow::TensorProto &tensor, MatShape& shape)
 {
     shape.clear();
     if (tensor.has_tensor_shape())
@@ -72,7 +72,7 @@ void blobShapeFromTensor(const tensorflow::TensorProto &tensor, std::vector<int>
 template <typename T>
 void parseTensor(const tensorflow::TensorProto &tensor, Mat &dstBlob)
 {
-    std::vector<int> shape;
+    MatShape shape;
     blobShapeFromTensor(tensor, shape);
     int dims = (int)shape.size();
 
@@ -236,7 +236,7 @@ void setStrides(LayerParams &layerParams, const tensorflow::NodeDef &layer)
 }
 
 DictValue parseDims(const tensorflow::TensorProto &tensor) {
-    std::vector<int> shape;
+    MatShape shape;
     blobShapeFromTensor(tensor, shape);
     int dims = (int)shape.size();
 
@@ -396,7 +396,7 @@ TFImporter::TFImporter(const char *model)
 
 void TFImporter::kernelFromTensor(const tensorflow::TensorProto &tensor, Mat &dstBlob)
 {
-    std::vector<int> shape;
+    MatShape shape;
     blobShapeFromTensor(tensor, shape);
     int dims = (int)shape.size();
 
@@ -736,23 +736,6 @@ void TFImporter::populateNet(Net dstNet)
 
 } // namespace
 
-Net cv::dnn::readNetFromTensorflow(const String &model)
-{
-    Ptr<Importer> importer;
-    try
-    {
-        importer = createTensorflowImporter(model);
-    }
-    catch(...)
-    {
-    }
-
-    Net net;
-    if (importer)
-        importer->populateNet(net);
-    return net;
-}
-
 Ptr<Importer> cv::dnn::createTensorflowImporter(const String &model)
 {
     return Ptr<Importer>(new TFImporter(model.c_str()));
@@ -767,3 +750,12 @@ Ptr<Importer> cv::dnn::createTensorflowImporter(const String&)
 }
 
 #endif //HAVE_PROTOBUF
+
+Net cv::dnn::readNetFromTensorflow(const String &model)
+{
+    Ptr<Importer> importer = createTensorflowImporter(model);
+    Net net;
+    if (importer)
+        importer->populateNet(net);
+    return net;
+}

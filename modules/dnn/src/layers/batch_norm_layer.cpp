@@ -10,6 +10,7 @@ Implementation of Batch Normalization layer.
 */
 
 #include "../precomp.hpp"
+#include <opencv2/dnn/shape_utils.hpp>
 
 namespace cv
 {
@@ -29,32 +30,20 @@ public:
         epsilon = params.get<float>("eps", 1E-5);
     }
 
-    void allocate(const std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
+    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_Assert(blobs.size() >= 2);
+        CV_Assert(inputs.size() == 1);
 
-        outputs.resize(inputs.size());
-        for (size_t i = 0; i < inputs.size(); i++)
-        {
-            CV_Assert(blobs[0].total() == inputs[i]->size[1]);
-            CV_Assert(blobs[1].total() == inputs[i]->size[1]);
-            Mat* inp = inputs[i];
-            outputs[i].create(inp->dims, &inp->size.p[0], inp->type());
-        }
-
-        varMeanScale = 1.f;
+        float varMeanScale = 1.f;
         if (!hasWeights && !hasBias) {
             varMeanScale = *blobs[2].ptr<float>();
             if (varMeanScale != 0)
                 varMeanScale = 1/varMeanScale;
         }
 
+        Mat invStdMat;
         cv::pow(blobs[1]*varMeanScale + epsilon, -0.5, invStdMat);
-    }
-
-    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
-    {
-        CV_Assert(inputs.size() == 1);
 
         Mat &inpBlob = *inputs[0];
 
@@ -90,9 +79,21 @@ public:
         }
     }
 
+    virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
+                           const std::vector<MatShape> &outputs) const
+    {
+        (void)outputs; // suppress unused variable warning
+
+        int64 flops = 0;
+        for(int i = 0; i < inputs.size(); i++)
+        {
+            flops += 3*total(inputs[i]);
+        }
+        return flops;
+    }
+
     bool hasWeights, hasBias;
-    float epsilon, varMeanScale;
-    Mat invStdMat;
+    float epsilon;
 };
 
 Ptr<BatchNormLayer> BatchNormLayer::create(const LayerParams& params)

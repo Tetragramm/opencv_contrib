@@ -59,18 +59,7 @@ public:
         eps = params.get<double>("eps", 1e-9);
     }
 
-    void allocate(const std::vector<Mat *> &inputs, std::vector<Mat> &outputs)
-    {
-        outputs.resize(inputs.size());
-        for (size_t i = 0; i < inputs.size(); i++)
-        {
-            int dims = inputs[i]->dims;
-            CV_Assert(!acrossChannels || dims >= 2);
-            outputs[i].create(dims, inputs[i]->size.p, inputs[i]->type());
-        }
-    }
-
-    void forward(std::vector<Mat *> &inputs, std::vector<Mat> &outputs)
+    void forward(std::vector<Mat *> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         for (size_t inpIdx = 0; inpIdx < inputs.size(); inpIdx++)
         {
@@ -95,6 +84,18 @@ public:
                 inpRow.convertTo(outRow, outRow.type(), alpha, -mean[0] * alpha);
             }
         }
+    }
+
+    virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
+                           const std::vector<MatShape> &outputs) const
+    {
+        (void)outputs; // suppress unused variable warning
+        long flops = 0;
+        for(int i = 0; i < inputs.size(); i++)
+        {
+            flops += 6*total(inputs[i]) + 3*total(inputs[i], 0, normVariance ? 2 : 1);
+        }
+        return flops;
     }
 };
 

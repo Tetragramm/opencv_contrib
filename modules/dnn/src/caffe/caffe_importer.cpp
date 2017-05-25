@@ -192,7 +192,7 @@ public:
         }
     }
 
-    void blobShapeFromProto(const caffe::BlobProto &pbBlob, std::vector<int>& shape)
+    void blobShapeFromProto(const caffe::BlobProto &pbBlob, MatShape& shape)
     {
         shape.clear();
         if (pbBlob.has_num() || pbBlob.has_channels() || pbBlob.has_height() || pbBlob.has_width())
@@ -215,7 +215,7 @@ public:
 
     void blobFromProto(const caffe::BlobProto &pbBlob, cv::Mat &dstBlob)
     {
-        std::vector<int> shape;
+        MatShape shape;
         blobShapeFromProto(pbBlob, shape);
 
         dstBlob.create((int)shape.size(), &shape[0], CV_32F);
@@ -374,15 +374,7 @@ Ptr<Importer> cv::dnn::createCaffeImporter(const String&, const String&)
 
 Net cv::dnn::readNetFromCaffe(const String &prototxt, const String &caffeModel /*= String()*/)
 {
-    Ptr<Importer> caffeImporter;
-    try
-    {
-        caffeImporter = createCaffeImporter(prototxt, caffeModel);
-    }
-    catch(...)
-    {
-    }
-
+    Ptr<Importer> caffeImporter = createCaffeImporter(prototxt, caffeModel);
     Net net;
     if (caffeImporter)
         caffeImporter->populateNet(net);

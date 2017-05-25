@@ -75,36 +75,28 @@ public:
         normBySize = params.get<bool>("norm_by_size", true);
     }
 
-    void allocate(const std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
+    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
-        CV_Assert(inputs.size() == 1 && inputs[0]->dims == 4);
-        CV_Assert(type == CHANNEL_NRM || type == SPATIAL_NRM);
-
-        const Mat& inp0 = *inputs[0];
-
-        if (type == SPATIAL_NRM)
-            buf.create(inp0.size[2], inp0.size[3], inp0.type());
-
-        outputs.resize(1);
-        outputs[0].create(inp0.dims, inp0.size.p, inp0.type());
-    }
-
-    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
-    {
-        Mat &src = *inputs[0];
-        Mat &dst = outputs[0];
-
-        switch (type)
+        CV_Assert(inputs.size() == outputs.size());
+        for (int i = 0; i < inputs.size(); i++)
         {
-            case CHANNEL_NRM:
-                channelNormalization(src, dst);
-                break;
-            case SPATIAL_NRM:
-                spatialNormalization(src, dst);
-                break;
-            default:
-                CV_Error(Error::StsNotImplemented, "Unimplemented mode of LRN layer");
-                break;
+            CV_Assert(inputs[i]->dims == 4);
+
+            Mat &src = *inputs[i];
+            Mat &dst = outputs[i];
+
+            switch (type)
+            {
+                case CHANNEL_NRM:
+                    channelNormalization(src, dst);
+                    break;
+                case SPATIAL_NRM:
+                    spatialNormalization(src, dst);
+                    break;
+                default:
+                    CV_Error(Error::StsNotImplemented, "Unimplemented mode of LRN layer");
+                    break;
+            }
         }
     }
 
@@ -180,7 +172,34 @@ public:
         }
     }
 
-    Mat buf;
+    virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
+                           const std::vector<MatShape> &outputs) const
+    {
+        (void)outputs; // suppress unused variable warning
+        CV_Assert(inputs.size() > 0);
+        long flops = 0;
+
+        for(int i = 0; i < inputs.size(); i++)
+        {
+            if (type == CHANNEL_NRM)
+            {
+                int channels = inputs[i][1];
+                int ksize = (size - 1) / 2;
+
+                flops += inputs[i][0]*(std::min(ksize, channels)*2*total(inputs[i], 2) + channels*4*total(inputs[i], 2));
+
+                if (ksize < channels)
+                {
+                    flops += (size + 2*(channels - size))*total(inputs[i], 2);
+                }
+            }
+            else
+            {
+                flops += total(inputs[i])*(2*size*size + 2);
+            }
+        }
+        return flops;
+    }
 };
 
 Ptr<LRNLayer> LRNLayer::create(const LayerParams& params)

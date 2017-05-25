@@ -10,7 +10,7 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
+// Copyright (C) 2017, Intel Corporation, all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -39,50 +39,67 @@
 //
 //M*/
 
-#include "test_precomp.hpp"
-#include "npy_blob.hpp"
-#include <opencv2/core/ocl.hpp>
-#include <opencv2/ts/ocl_test.hpp>
+#include "opencv2/core/utility.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/ximgproc.hpp"
 
-namespace cvtest
-{
+#include <stdio.h>
 
 using namespace cv;
-using namespace cv::dnn;
+using namespace std;
 
-template<typename TString>
-static std::string _tf(TString filename)
+int main( int argc, const char** argv)
 {
-    return (getOpenCVExtraDir() + "/dnn/") + filename;
-}
+    float alpha = 1.0f;
+    float sigma = 0.02f;
+    int rows0 = 480;
+    int niters = 10;
+    Mat frame, src, dst;
 
-static void launchGoogleNetTest()
-{
-    Net net;
+    const char* window_name = "Anisodiff : Exponential Flux";
+
+    VideoCapture cap;
+    if( argc > 1 )
+        cap.open(argv[1]);
+    else
+        cap.open(0);
+
+    if (!cap.isOpened())
     {
-        const string proto = findDataFile("dnn/bvlc_googlenet.prototxt", false);
-        const string model = findDataFile("dnn/bvlc_googlenet.caffemodel", false);
-        Ptr<Importer> importer = createCaffeImporter(proto, model);
-        ASSERT_TRUE(importer != NULL);
-        importer->populateNet(net);
+        printf("Cannot initialize video capturing\n");
+        return 0;
     }
 
-    std::vector<Mat> inpMats;
-    inpMats.push_back( imread(_tf("googlenet_0.png")) );
-    inpMats.push_back( imread(_tf("googlenet_1.png")) );
-    ASSERT_TRUE(!inpMats[0].empty() && !inpMats[1].empty());
+    // Create a window
+    namedWindow(window_name, 1);
 
-    net.setBlob(".data", blobFromImages(inpMats));
-    net.forward();
+    // create a toolbar
+    createTrackbar("No. of time steps", window_name, &niters, 30, 0);
 
-    Mat out = net.getBlob("prob");
-    Mat ref = blobFromNPY(_tf("googlenet_prob.npy"));
-    normAssert(out, ref);
-}
+    for(;;)
+    {
+        cap >> frame;
+        if( frame.empty() )
+            break;
 
-TEST(Reproducibility_GoogLeNet, Accuracy)
-{
-    launchGoogleNetTest();
-}
+        if( frame.rows <= rows0 )
+            src = frame;
+        else
+            resize(frame, src, Size(cvRound(480.*frame.cols/frame.rows), 480));
 
+        float t = (float)getTickCount();
+        ximgproc::anisotropicDiffusion(src, dst, alpha, sigma, niters);
+        t = (float)getTickCount() - t;
+        printf("time: %.1fms\n", t*1000./getTickFrequency());
+        imshow(window_name, dst);
+
+        // Wait for a key stroke; the same function arranges events processing
+        char c = (char)waitKey(30);
+        if(c >= 0)
+            break;
+    }
+
+    return 0;
 }

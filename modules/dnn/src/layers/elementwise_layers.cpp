@@ -36,16 +36,16 @@ public:
 
     ElementWiseLayer(bool run_parallel_=false, const Func &f=Func()) : func(f), run_parallel(run_parallel_) {}
 
-    void allocate(const std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
+    bool getMemoryShapes(const std::vector<MatShape> &inputs,
+                                         const int requiredOutputs,
+                                         std::vector<MatShape> &outputs,
+                                         std::vector<MatShape> &internals) const
     {
-        outputs.resize(inputs.size());
-        for (size_t i = 0; i < inputs.size(); i++)
-        {
-            outputs[i] = *inputs[i];
-        }
+        Layer::getMemoryShapes(inputs, requiredOutputs, outputs, internals);
+        return true;
     }
 
-    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
+    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         for (size_t i = 0; i < inputs.size(); i++)
         {
@@ -61,6 +61,17 @@ public:
             else
                 body(sizeRange);
         }
+    }
+
+    virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
+                           const std::vector<MatShape> &outputs) const
+    {
+        long flops = 0;
+        for (int i = 0; i < outputs.size(); i++)
+        {
+            flops += total(outputs[i]) * func.getFLOPSPerElement();
+        }
+        return flops;
     }
 
     Func func;
@@ -79,6 +90,8 @@ struct ReLUFunctor
     {
         return (x >= (TFloat)0) ? x : (TFloat)slope * x;
     }
+
+    int64 getFLOPSPerElement() const {return 1;}
 };
 
 struct TanHFunctor
@@ -90,6 +103,8 @@ struct TanHFunctor
     {
         return tanh(x);
     }
+
+    int64 getFLOPSPerElement() const {return 1;}
 };
 
 struct SigmoidFunctor
@@ -101,6 +116,8 @@ struct SigmoidFunctor
     {
         return (TFloat)1 / ((TFloat)1 + exp(-x));
     }
+
+    int64 getFLOPSPerElement() const {return 3;}
 };
 
 struct AbsValFunctor
@@ -112,6 +129,8 @@ struct AbsValFunctor
     {
         return abs(x);
     }
+
+    int64 getFLOPSPerElement() const {return 1;}
 };
 
 struct BNLLFunctor
@@ -123,6 +142,8 @@ struct BNLLFunctor
     {
         return log((TFloat)1 + exp(-abs(x)));
     }
+
+    int64 getFLOPSPerElement() const {return 5;}
 };
 
 struct PowerFunctor
@@ -141,6 +162,8 @@ struct PowerFunctor
     {
         return pow((TFloat)shift + (TFloat)scale * x, (TFloat)power);
     }
+
+    int64 getFLOPSPerElement() const {return 3;}
 };
 
 struct PowerFunctor1
@@ -158,6 +181,8 @@ struct PowerFunctor1
     {
         return (TFloat)shift + (TFloat)scale * x;
     }
+
+    int64 getFLOPSPerElement() const {return 2;}
 };
 
 class ChannelsPReLULayerImpl : public ChannelsPReLULayer
@@ -169,20 +194,16 @@ public:
         setParamsFrom(params);
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-
-    void allocate(const std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
+    bool getMemoryShapes(const std::vector<MatShape> &inputs,
+                                         const int requiredOutputs,
+                                         std::vector<MatShape> &outputs,
+                                         std::vector<MatShape> &internals) const
     {
-        CV_Assert(blobs.size() == 1);
-
-        outputs.resize(inputs.size());
-        for (size_t i = 0; i < inputs.size(); i++)
-        {
-            outputs[i].create(inputs[i]->dims, inputs[i]->size.p, inputs[i]->type());
-        }
+        Layer::getMemoryShapes(inputs, requiredOutputs, outputs, internals);
+        return true;
     }
 
-    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs)
+    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_Assert(inputs.size() == 1);
         Mat &inpBlob = *inputs[0];
@@ -214,6 +235,20 @@ public:
             }
         }
     }
+
+    virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
+                           const std::vector<MatShape> &outputs) const
+    {
+        (void)inputs; // suppress unused variable warning
+        long flops = 0;
+
+        for (int i = 0; i < outputs.size(); i++)
+        {
+            flops += total(outputs[i]) * 3;
+        }
+
+        return flops;
+    }
 };
 
 #define ACTIVATION_CREATOR_FOR(_Layer, _Functor, ...) \
@@ -224,7 +259,7 @@ Ptr<_Layer> _Layer::create() { \
 Ptr<ReLULayer> ReLULayer::create(const LayerParams& params)
 {
     float negativeSlope = params.get<float>("negative_slope", 0.f);
-    Ptr<ReLULayer> l(new ElementWiseLayer<ReLUFunctor>(false, ReLUFunctor(negativeSlope)));
+    Ptr<ReLULayer> l(new ElementWiseLayer<ReLUFunctor>(true, ReLUFunctor(negativeSlope)));
     l->setParamsFrom(params);
 
     return l;
