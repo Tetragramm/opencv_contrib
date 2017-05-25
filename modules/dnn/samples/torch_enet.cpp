@@ -26,13 +26,13 @@ const String keys =
         "{o_blob    || output blob's name. If empty, last blob's name in net is used}"
         ;
 
-std::vector<String> readClassNames(const char *filename);
-static void colorizeSegmentation(Blob &score, Mat &segm,
-                                 Mat &legend, vector<String> &classNames);
+static void colorizeSegmentation(const Mat &score, Mat &segm,
+                                 Mat &legend, vector<String> &classNames, vector<Vec3b> &colors);
+static vector<Vec3b> readColors(const String &filename, vector<String>& classNames);
 
 int main(int argc, char **argv)
 {
-    cv::CommandLineParser parser(argc, argv, keys);
+    CommandLineParser parser(argc, argv, keys);
 
     if (parser.has("help"))
     {
@@ -52,30 +52,8 @@ int main(int argc, char **argv)
     String classNamesFile = parser.get<String>("c_names");
     String resultFile = parser.get<String>("result");
 
-    //! [Create the importer of TensorFlow model]
-    Ptr<dnn::Importer> importer;
-    try                                     //Try to import TensorFlow AlexNet model
-    {
-        importer = dnn::createTorchImporter(modelFile);
-    }
-    catch (const cv::Exception &err)        //Importer can throw errors, we will catch them
-    {
-        std::cerr << err.msg << std::endl;
-    }
-    //! [Create the importer of Caffe model]
-
-    if (!importer)
-    {
-        std::cerr << "Can't load network by using the mode file: " << std::endl;
-        std::cerr << modelFile << std::endl;
-        exit(-1);
-    }
-
-    //! [Initialize network]
-    dnn::Net net;
-    importer->populateNet(net);
-    importer.release();                     //We don't need importer anymore
-    //! [Initialize network]
+    //! [Read model and initialize network]
+    dnn::Net net = dnn::readNetFromTorch(modelFile);
 
     //! [Prepare blob]
     Mat img = imread(imageFile), input;
@@ -85,31 +63,32 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
-    cv::Size inputImgSize = cv::Size(512, 512);
+    Size origSize = img.size();
+    Size inputImgSize = cv::Size(1024, 512);
 
-    if (inputImgSize != img.size())
+    if (inputImgSize != origSize)
         resize(img, img, inputImgSize);       //Resize image to input size
 
-    if(img.channels() == 3)
-        cv::cvtColor(img, input, cv::COLOR_BGR2RGB);
-
-    input.convertTo(input, CV_32F, 1/255.0);
-
-    dnn::Blob inputBlob = dnn::Blob::fromImages(input);   //Convert Mat to dnn::Blob image batch
+    Mat inputBlob = blobFromImage(img, 1./255, true);   //Convert Mat to image batch
     //! [Prepare blob]
 
     //! [Set input blob]
     net.setBlob("", inputBlob);        //set the network input
     //! [Set input blob]
 
-    cv::TickMeter tm;
-    tm.start();
+    const int N = 3;
+    TickMeter tm;
 
     //! [Make forward pass]
-    net.forward();                          //compute output
-    //! [Make forward pass]
-
-    tm.stop();
+    for( int i = 0; i < N; i++ )
+    {
+        TickMeter tm_;
+        tm_.start();
+        net.forward();                          //compute output
+        tm_.stop();
+        if( i == 0 || tm_.getTimeTicks() < tm.getTimeTicks() )
+            tm = tm_;
+    }
 
     //! [Gather output]
 
@@ -119,11 +98,7 @@ int main(int argc, char **argv)
         oBlob = parser.get<String>("o_blob");
     }
 
-    dnn::Blob prob = net.getBlob(oBlob);   //gather output of "prob" layer
-
-    Mat& result = prob.matRef();
-
-    BlobShape shape = prob.shape();
+    Mat result = net.getBlob(oBlob);   //gather output of "prob" layer
 
     if (!resultFile.empty()) {
         CV_Assert(result.isContinuous());
@@ -133,24 +108,23 @@ int main(int argc, char **argv)
         fout.close();
     }
 
-    std::cout << "Output blob shape " << shape  << std::endl;
+    std::cout << "Output blob: " << result.size[0] << " x " << result.size[1] << " x " << result.size[2] << " x " << result.size[3] << "\n";
     std::cout << "Inference time, ms: " << tm.getTimeMilli()  << std::endl;
 
     if (parser.has("show"))
     {
         std::vector<String> classNames;
+        vector<cv::Vec3b> colors;
         if(!classNamesFile.empty()) {
-            classNames = readClassNames(classNamesFile.c_str());
-            if (classNames.size() > prob.channels())
-                classNames = std::vector<String>(classNames.begin() + classNames.size() - prob.channels(),
-                                                 classNames.end());
+            colors = readColors(classNamesFile, classNames);
         }
         Mat segm, legend;
-        colorizeSegmentation(prob, segm, legend, classNames);
+        colorizeSegmentation(result, segm, legend, classNames, colors);
 
         Mat show;
-        addWeighted(img, 0.2, segm, 0.8, 0.0, show);
+        addWeighted(img, 0.1, segm, 0.9, 0.0, show);
 
+        cv::resize(show, show, origSize, 0, 0, cv::INTER_NEAREST);
         imshow("Result", show);
         if(classNames.size())
             imshow("Legend", legend);
@@ -160,47 +134,19 @@ int main(int argc, char **argv)
     return 0;
 } //main
 
-
-std::vector<String> readClassNames(const char *filename)
+static void colorizeSegmentation(const Mat &score, Mat &segm, Mat &legend, vector<String> &classNames, vector<Vec3b> &colors)
 {
-    std::vector<String> classNames;
-
-    std::ifstream fp(filename);
-    if (!fp.is_open())
-    {
-        std::cerr << "File with classes labels not found: " << filename << std::endl;
-        exit(-1);
-    }
-
-    std::string name;
-    while (!fp.eof())
-    {
-        std::getline(fp, name);
-        if (name.length())
-            classNames.push_back(name);
-    }
-
-    fp.close();
-    return classNames;
-}
-
-static void colorizeSegmentation(Blob &score, Mat &segm, Mat &legend, vector<String> &classNames)
-{
-    const int rows = score.rows();
-    const int cols = score.cols();
-    const int chns = score.channels();
-
-    vector<Vec3i> colors;
-    RNG rng(12345678);
+    const int rows = score.size[2];
+    const int cols = score.size[3];
+    const int chns = score.size[1];
 
     cv::Mat maxCl(rows, cols, CV_8UC1);
     cv::Mat maxVal(rows, cols, CV_32FC1);
     for (int ch = 0; ch < chns; ch++)
     {
-        colors.push_back(Vec3i(rng.uniform(0, 256), rng.uniform(0, 256), rng.uniform(0, 256)));
         for (int row = 0; row < rows; row++)
         {
-            const float *ptrScore = score.ptrf(0, ch, row);
+            const float *ptrScore = score.ptr<float>(0, ch, row);
             uchar *ptrMaxCl = maxCl.ptr<uchar>(row);
             float *ptrMaxVal = maxVal.ptr<float>(row);
             for (int col = 0; col < cols; col++)
@@ -236,4 +182,39 @@ static void colorizeSegmentation(Blob &score, Mat &segm, Mat &legend, vector<Str
             putText(block, classNames[i], Point(0, blockHeight/2), FONT_HERSHEY_SIMPLEX, 0.5, Scalar());
         }
     }
+}
+
+static vector<Vec3b> readColors(const String &filename, vector<String>& classNames)
+{
+    vector<cv::Vec3b> colors;
+    classNames.clear();
+
+    ifstream fp(filename.c_str());
+    if (!fp.is_open())
+    {
+        cerr << "File with colors not found: " << filename << endl;
+        exit(-1);
+    }
+
+    string line;
+    while (!fp.eof())
+    {
+        getline(fp, line);
+        if (line.length())
+        {
+            stringstream ss(line);
+
+            string name; ss >> name;
+            int temp;
+            cv::Vec3b color;
+            ss >> temp; color[0] = temp;
+            ss >> temp; color[1] = temp;
+            ss >> temp; color[2] = temp;
+            classNames.push_back(name);
+            colors.push_back(color);
+        }
+    }
+
+    fp.close();
+    return colors;
 }
