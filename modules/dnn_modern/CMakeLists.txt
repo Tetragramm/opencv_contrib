@@ -6,8 +6,6 @@ if(${CMAKE_VERSION} VERSION_LESS 3.2)
   return()
 endif()
 
-cmake_policy(SET CMP0028 OLD)
-
 # Using cmake scripts and modules
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -82,6 +80,12 @@ add_definitions(-DCNN_NO_SERIALIZATION -DCNN_USE_CAFFE_CONVERTER)
 # NOTE: In case that proto files already exist,
 #       this is not needed anymore.
 find_package(Protobuf QUIET)
+
+if(NOT ${Protobuf_FOUND})
+  message(STATUS "Module opencv_dnn_modern disabled because Protobuf is not found")
+  ocv_module_disable(dnn_modern)
+  return()
+endif()
 
 if(DEFINED PROTOBUF_PROTOC_EXECUTABLE AND EXISTS ${PROTOBUF_PROTOC_EXECUTABLE})
   execute_process(COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} caffe.proto --cpp_out=./
