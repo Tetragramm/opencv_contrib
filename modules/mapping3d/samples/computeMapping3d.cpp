@@ -42,10 +42,12 @@
 #include <opencv2/core/utility.hpp>
 #include <opencv2/mapping3d.hpp>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using namespace cv;
 using namespace mapping3d;
+using namespace chrono;
 
 static const char* keys =
 { "{@sample_path   |1| Path of the folder containing the sample files}" };
@@ -58,8 +60,20 @@ static void help()
 		<< endl;
 }
 
-void readImagesAndExtrinsics(vector<Mat>& images, vector<Mat>& rBuffer, vector<Mat>& tBuffer)
+void readImagesAndExtrinsics(String sample_path, vector<Mat>& images, vector<Mat>& rBuffer, vector<Mat>& tBuffer, Mat& cameraMatrix)
 {
+	//Open the xml file containing the camera intrinsic and extrinsics.
+	FileStorage fs;
+	fs.open( sample_path+"Poses.xml", FileStorage::FORMAT_AUTO );
+
+	//Read in the camera matrix
+	fs["Camera_Matrix"] >> cameraMatrix;
+	cameraMatrix.convertTo( cameraMatrix, CV_64F );
+
+	//Read in the number of frames
+	int numFrames;
+	fs["nr_of_frames"] >> numFrames;
+
 	for( int i = 1, j = 0; i < numFrames; i += 10, ++j )
 	{
 		std::stringstream str1, str2;
@@ -67,7 +81,7 @@ void readImagesAndExtrinsics(vector<Mat>& images, vector<Mat>& rBuffer, vector<M
 		str2 << "Pose_Matrix_" << i;
 		cout << "Reading File " << i << ".png" << "\n";
 		//Create the File path and read in the image
-		imgBuffer.push_back( imread( str1.str() ) );
+		images.push_back( imread( str1.str() ) );
 		Mat pose, rvec;
 		//Read in the OpenGL Pose
 		fs[str2.str()] >> pose;
@@ -150,8 +164,6 @@ void writePLY( Mat PC, const char* FileName )
 
 		outFile << std::endl;
 	}
-
-	return;
 }
 
 int main( int argc, char** argv )
@@ -166,22 +178,10 @@ int main( int argc, char** argv )
 	return -1;
 	}
 
-	//Open the xml file containing the camera intrinsic and extrinsics.
-	FileStorage fs;
-	fs.open( sample_path+"Poses.xml", FileStorage::FORMAT_AUTO );
-
-	//Read in the camera matrix
-	Mat cameraMatrix;
-	fs["Camera_Matrix"] >> cameraMatrix;
-	cameraMatrix.convertTo( cameraMatrix, CV_64F );
-
-	//Read in the number of frames
-	int numFrames;
-	fs["nr_of_frames"] >> numFrames;
-
 	//Declare the vectors to hold the images and extrinsics
 	vector<Mat> imgBuffer, rBuffer, tBuffer;
-	readImagesAndExtrinsics( imgBuffer, rBuffer, tBuffer );
+    Mat cameraMatrix;
+	readImagesAndExtrinsics( sample_path, imgBuffer, rBuffer, tBuffer, cameraMatrix );
 
 	//These get re-used many times.  Save the allocations.
 	vector<Mat> keyFramePyr, dstFramePyr;
@@ -278,8 +278,9 @@ int main( int argc, char** argv )
 		timeTotal += duration_cast<nanoseconds>( stop - start ).count();
 		ptsTotal += trackingPts.size();
 	}
-	cout << timeTotal / 1.0e9 << " seconds for " << ptsTotal << " points through 10 frames.\n";
-	cout << "This excludes the time spent on optical flow and is just the time calculating 3d positions.";
+    cout << timeTotal / 1.0e9 << " seconds for " << ptsTotal << " points through "
+            << imgBuffer.size() << " frames.\n";
+    cout << "This excludes the time spent on optical flow and is just the time calculating 3d positions.";
 
 	//Reshape the Point Cloud Matrix and print it to a PLY file.
 	PCL = PCL.reshape( 3, PCL.rows );
