@@ -197,7 +197,8 @@ static const float SIFT_DESCR_MAG_THR = 0.2f;
 // factor used to convert floating-point descriptor to unsigned char
 static const float SIFT_INT_DESCR_FCTR = 512.f;
 
-#if 0
+#define DoG_TYPE_SHORT 0
+#if DoG_TYPE_SHORT
 // intermediate type used for DoG pyramids
 typedef short sift_wt;
 static const int SIFT_FIXPT_SCALE = 48;
@@ -233,7 +234,11 @@ static Mat createInitialImage( const Mat& img, bool doubleImageSize, float sigma
     {
         sig_diff = sqrtf( std::max(sigma * sigma - SIFT_INIT_SIGMA * SIFT_INIT_SIGMA * 4, 0.01f) );
         Mat dbl;
+#if DoG_TYPE_SHORT
+        resize(gray_fpt, dbl, Size(gray_fpt.cols*2, gray_fpt.rows*2), 0, 0, INTER_LINEAR_EXACT);
+#else
         resize(gray_fpt, dbl, Size(gray_fpt.cols*2, gray_fpt.rows*2), 0, 0, INTER_LINEAR);
+#endif
         GaussianBlur(dbl, dbl, Size(), sig_diff, sig_diff);
         return dbl;
     }
@@ -378,7 +383,7 @@ static float calcOrientationHist( const Mat& img, Point pt, int radius,
         float CV_DECL_ALIGNED(32) w_mul_mag_buf[8];
         for ( ; k <= len - 8; k+=8 )
         {
-            __m256i __bin = _mm256_cvtps_epi32(_mm256_round_ps(_mm256_mul_ps(__nd360, _mm256_loadu_ps(&Ori[k])), _MM_FROUND_TO_NEAREST_INT |_MM_FROUND_NO_EXC));
+            __m256i __bin = _mm256_cvtps_epi32(_mm256_mul_ps(__nd360, _mm256_loadu_ps(&Ori[k])));
 
             __bin = _mm256_sub_epi32(__bin, _mm256_andnot_si256(_mm256_cmpgt_epi32(__n, __bin), __n));
             __bin = _mm256_add_epi32(__bin, _mm256_and_si256(__n, _mm256_cmpgt_epi32(_mm256_setzero_si256(), __bin)));
