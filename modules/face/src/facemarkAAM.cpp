@@ -92,24 +92,27 @@ void FacemarkAAM::Params::write( cv::FileStorage& fs ) const{
 class FacemarkAAMImpl : public FacemarkAAM {
 public:
     FacemarkAAMImpl( const FacemarkAAM::Params &parameters = FacemarkAAM::Params() );
-    void read( const FileNode& /*fn*/ );
-    void write( FileStorage& /*fs*/ ) const;
+    void read( const FileNode& /*fn*/ ) CV_OVERRIDE;
+    void write( FileStorage& /*fs*/ ) const CV_OVERRIDE;
 
     void saveModel(String fs);
-    void loadModel(String fs);
+    void loadModel(String fs) CV_OVERRIDE;
 
-    bool setFaceDetector(bool(*f)(InputArray , OutputArray, void * ), void* userData);
-    bool getFaces(InputArray image, OutputArray faces);
+    bool setFaceDetector(bool(*f)(InputArray , OutputArray, void * ), void* userData) CV_OVERRIDE;
+    bool getFaces(InputArray image, OutputArray faces) CV_OVERRIDE;
 
-    bool getData(void * items);
+    bool getData(void * items) CV_OVERRIDE;
+
+    bool fitConfig( InputArray image, InputArray roi, OutputArrayOfArrays _landmarks, const std::vector<Config> &runtime_params ) CV_OVERRIDE;
 
 protected:
 
-    bool fit( InputArray image, InputArray faces, InputOutputArray landmarks, void * runtime_params);//!< from many ROIs
+    bool fit( InputArray image, InputArray faces, OutputArrayOfArrays landmarks ) CV_OVERRIDE;
+    //bool fit( InputArray image, InputArray faces, InputOutputArray landmarks, void * runtime_params);//!< from many ROIs
     bool fitImpl( const Mat image, std::vector<Point2f>& landmarks,const  Mat R,const  Point2f T,const  float scale, const int sclIdx=0 );
 
-    bool addTrainingSample(InputArray image, InputArray landmarks);
-    void training(void* parameters);
+    bool addTrainingSample(InputArray image, InputArray landmarks) CV_OVERRIDE;
+    void training(void* parameters) CV_OVERRIDE;
 
     Mat procrustes(std::vector<Point2f> , std::vector<Point2f> , Mat & , Scalar & , float & );
     void calcMeanShape(std::vector<std::vector<Point2f> > ,std::vector<Point2f> & );
@@ -150,6 +153,14 @@ private:
 * Constructor
 */
 Ptr<FacemarkAAM> FacemarkAAM::create(const FacemarkAAM::Params &parameters){
+    return Ptr<FacemarkAAMImpl>(new FacemarkAAMImpl(parameters));
+}
+
+/*
+* Constructor
+*/
+Ptr<Facemark> createFacemarkAAM(){
+    FacemarkAAM::Params parameters;
     return Ptr<FacemarkAAMImpl>(new FacemarkAAMImpl(parameters));
 }
 
@@ -312,7 +323,13 @@ void FacemarkAAMImpl::training(void* parameters){
     if(params.verbose) printf("Training is completed\n");
 }
 
-bool FacemarkAAMImpl::fit( InputArray image, InputArray roi, InputOutputArray _landmarks, void * runtime_params)
+bool FacemarkAAMImpl::fit( InputArray image, InputArray roi, OutputArrayOfArrays _landmarks )
+{
+    std::vector<Config> config; // empty
+    return fitConfig(image, roi, _landmarks, config);
+}
+
+bool FacemarkAAMImpl::fitConfig( InputArray image, InputArray roi, OutputArrayOfArrays _landmarks, const std::vector<Config> &configs )
 {
     std::vector<Rect> & faces = *(std::vector<Rect> *)roi.getObj();
     if(faces.size()<1) return false;
@@ -322,14 +339,13 @@ bool FacemarkAAMImpl::fit( InputArray image, InputArray roi, InputOutputArray _l
     landmarks.resize(faces.size());
 
     Mat img = image.getMat();
-    if(runtime_params!=0){
+    if (! configs.empty()){
 
-        std::vector<Config> conf = *(std::vector<Config>*)runtime_params;
-        if (conf.size()!=faces.size()) {
+        if (configs.size()!=faces.size()) {
             CV_Error(Error::StsBadArg, "Number of faces and extra_parameters are different!");
         }
-        for(size_t i=0; i<conf.size();i++){
-            fitImpl(img, landmarks[i], conf[i].R,conf[i].t, conf[i].scale, conf[i].model_scale_idx);
+        for(size_t i=0; i<configs.size();i++){
+            fitImpl(img, landmarks[i], configs[i].R,configs[i].t, configs[i].scale, configs[i].model_scale_idx);
         }
     }else{
         Mat R =  Mat::eye(2, 2, CV_32F);

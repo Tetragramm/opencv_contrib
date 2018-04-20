@@ -40,12 +40,8 @@
  //M*/
 
 #include "test_precomp.hpp"
-#include "opencv2/tracking.hpp"
-#include <fstream>
 
-using namespace cv;
-using namespace testing;
-using namespace std;
+namespace opencv_test { namespace {
 
 #define TESTSET_NAMES testing::Values("david","dudek","faceocc2")
 
@@ -325,7 +321,7 @@ void TrackerTest::checkDataTest()
   fs.release();
 
   string gtFile = cvtest::TS::ptr()->get_data_path() + TRACKING_DIR + "/" + video + "/gt.txt";
-  ifstream gt;
+  std::ifstream gt;
   //open the ground truth
   gt.open( gtFile.c_str() );
   if( !gt.is_open() )
@@ -348,7 +344,7 @@ void TrackerTest::checkDataTest()
 
   //exclude from the images sequence, the frames where the target is occluded or out of view
   string omitFile = cvtest::TS::ptr()->get_data_path() + TRACKING_DIR + "/" + video + "/" + FOLDER_OMIT_INIT + "/" + video + ".txt";
-  ifstream omit;
+  std::ifstream omit;
   omit.open( omitFile.c_str() );
   if( omit.is_open() )
   {
@@ -373,7 +369,7 @@ void TrackerTest::checkDataTest()
   startFrame += ( segmentIdx - 1 ) * numFrame;
   endFrame = startFrame + numFrame;
 
-  ifstream gt2;
+  std::ifstream gt2;
   //open the ground truth
   gt2.open( gtFile.c_str() );
   if( !gt2.is_open() )
@@ -471,6 +467,12 @@ TEST_P(DistanceAndOverlap, MOSSE)
   test.run();
 }
 
+TEST_P(DistanceAndOverlap, CSRT)
+{
+  TrackerTest test( TrackerCSRT::create(), dataset, 22, .7f, NoTransform);
+  test.run();
+}
+
 /***************************************************************************************/
 //Tests with shifted initial window
 TEST_P(DistanceAndOverlap, Shifted_Data_MedianFlow)
@@ -506,6 +508,12 @@ TEST_P(DistanceAndOverlap, Shifted_Data_TLD)
 TEST_P(DistanceAndOverlap, Shifted_Data_MOSSE)
 {
   TrackerTest test( TrackerMOSSE::create(), dataset, 13, .69f, CenterShiftLeft);
+  test.run();
+}
+
+TEST_P(DistanceAndOverlap, Shifted_Data_CSRT)
+{
+  TrackerTest test( TrackerCSRT::create(), dataset, 13, .69f, CenterShiftLeft);
   test.run();
 }
 /***************************************************************************************/
@@ -553,7 +561,14 @@ TEST_P(DistanceAndOverlap, Scaled_Data_MOSSE)
   test.run();
 }
 
+TEST_P(DistanceAndOverlap, Scaled_Data_CSRT)
+{
+  TrackerTest test( TrackerCSRT::create(), dataset, 22, 0.69f, Scale_1_1, 1);
+  test.run();
+}
+
 
 INSTANTIATE_TEST_CASE_P( Tracking, DistanceAndOverlap, TESTSET_NAMES);
 
+}} // namespace
 /* End of file. */

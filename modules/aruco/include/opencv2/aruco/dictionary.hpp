@@ -61,9 +61,9 @@ namespace aruco {
 class CV_EXPORTS_W Dictionary {
 
     public:
-    CV_PROP Mat bytesList;         // marker code information
-    CV_PROP int markerSize;        // number of bits per dimension
-    CV_PROP int maxCorrectionBits; // maximum number of bits that can be corrected
+    CV_PROP_RW Mat bytesList;         // marker code information
+    CV_PROP_RW int markerSize;        // number of bits per dimension
+    CV_PROP_RW int maxCorrectionBits; // maximum number of bits that can be corrected
 
 
     /**
@@ -84,14 +84,14 @@ class CV_EXPORTS_W Dictionary {
     /**
      * @see generateCustomDictionary
      */
-    CV_WRAP_AS(create) static Ptr<Dictionary> create(int nMarkers, int markerSize);
+    CV_WRAP_AS(create) static Ptr<Dictionary> create(int nMarkers, int markerSize, int randomSeed=0);
 
 
     /**
      * @see generateCustomDictionary
      */
     CV_WRAP_AS(create_from) static Ptr<Dictionary> create(int nMarkers, int markerSize,
-            const Ptr<Dictionary> &baseDictionary);
+            const Ptr<Dictionary> &baseDictionary, int randomSeed=0);
 
     /**
      * @see getPredefinedDictionary
@@ -120,13 +120,13 @@ class CV_EXPORTS_W Dictionary {
     /**
       * @brief Transform matrix of bits to list of bytes in the 4 rotations
       */
-    static Mat getByteListFromBits(const Mat &bits);
+    CV_WRAP static Mat getByteListFromBits(const Mat &bits);
 
 
     /**
       * @brief Transform list of bytes to matrix of bits
       */
-    static Mat getBitsFromByteList(const Mat &byteList, int markerSize);
+    CV_WRAP static Mat getBitsFromByteList(const Mat &byteList, int markerSize);
 };
 
 
@@ -176,7 +176,8 @@ CV_EXPORTS_W Ptr<Dictionary> getPredefinedDictionary(int dict);
   */
 CV_EXPORTS_AS(custom_dictionary) Ptr<Dictionary> generateCustomDictionary(
         int nMarkers,
-        int markerSize);
+        int markerSize,
+        int randomSeed=0);
 
 
 /**
@@ -185,6 +186,7 @@ CV_EXPORTS_AS(custom_dictionary) Ptr<Dictionary> generateCustomDictionary(
   * @param nMarkers number of markers in the dictionary
   * @param markerSize number of bits per dimension of each markers
   * @param baseDictionary Include the markers in this dictionary at the beginning (optional)
+  * @param randomSeed a user supplied seed for theRNG()
   *
   * This function creates a new dictionary composed by nMarkers markers and each markers composed
   * by markerSize x markerSize bits. If baseDictionary is provided, its markers are directly
@@ -194,7 +196,8 @@ CV_EXPORTS_AS(custom_dictionary) Ptr<Dictionary> generateCustomDictionary(
 CV_EXPORTS_AS(custom_dictionary_from) Ptr<Dictionary> generateCustomDictionary(
         int nMarkers,
         int markerSize,
-        const Ptr<Dictionary> &baseDictionary);
+        const Ptr<Dictionary> &baseDictionary,
+        int randomSeed=0);
 
 
 

@@ -28,7 +28,7 @@ public:
         _borderType = borderType;
         _out_dtype = out_dtype;
     }
-    virtual void getRidgeFilteredImage(InputArray _img, OutputArray out);
+    virtual void getRidgeFilteredImage(InputArray _img, OutputArray out) CV_OVERRIDE;
 };
 
 void RidgeDetectionFilterImpl::getRidgeFilteredImage(InputArray _img, OutputArray out)
@@ -57,7 +57,7 @@ void RidgeDetectionFilterImpl::getRidgeFilteredImage(InputArray _img, OutputArra
     multiply(sbxx, sbyy, sbxxyy);
 
     Mat rootex;
-    rootex = (sb2xx +  (sb2xy + sb2xy + sb2xy + sb2xy)  - (sbxxyy + sbxxyy) + sb2xy );
+    rootex = (sb2xx +  (sb2xy + sb2xy + sb2xy + sb2xy)  - (sbxxyy + sbxxyy) + sb2yy );
     Mat root;
     sqrt(rootex, root);
     Mat ridgexp;

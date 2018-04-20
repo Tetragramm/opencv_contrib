@@ -40,13 +40,16 @@
  //
  //M*/
 
+#include "precomp.hpp"
 #include "opencv2/core/core_c.h"
 #include "opencv2/core/private.hpp"
 #include "opencv2/flann/miniflann.hpp"
 #include "opencv2/imgcodecs.hpp"
-#include "precomp.hpp"
 #include "opencl_kernels_optflow.hpp"
 #include "opencv2/core/hal/intrin.hpp"
+#ifdef CV_CXX11
+#include <random>  // std::mt19937
+#endif
 
 /* Disable "from double to float" and "from size_t to int" warnings.
  * Fixing these would make the code look ugly by introducing explicit cast all around.
@@ -246,7 +249,7 @@ public:
   ParallelDCTFiller( const Size &_sz, const Mat *_imgCh, std::vector< GPCPatchDescriptor > *_descr )
       : sz( _sz ), imgCh( _imgCh ), descr( _descr ){};
 
-  void operator()( const Range &range ) const
+  void operator()( const Range &range ) const CV_OVERRIDE
   {
     for ( int i = range.start; i < range.end; ++i )
     {
@@ -309,7 +312,7 @@ public:
   ParallelWHTFiller( const Size &_sz, const Mat *_imgChInt, std::vector< GPCPatchDescriptor > *_descr )
       : sz( _sz ), imgChInt( _imgChInt ), descr( _descr ){};
 
-  void operator()( const Range &range ) const
+  void operator()( const Range &range ) const CV_OVERRIDE
   {
     for ( int i = range.start; i < range.end; ++i )
     {
@@ -402,7 +405,12 @@ void getTrainingSamples( const Mat &from, const Mat &to, const Mat &gt, GPCSampl
                                                             // with a small displacement and train to better distinguish hard pairs.
   std::nth_element( mag.begin(), mag.begin() + n, mag.end() );
   mag.resize( n );
+#ifdef CV_CXX11
+  std::mt19937 std_rng(cv::theRNG()());
+  std::shuffle(mag.begin(), mag.end(), std_rng);
+#else
   std::random_shuffle( mag.begin(), mag.end() );
+#endif
   n /= patchRadius;
   mag.resize( n );
 
