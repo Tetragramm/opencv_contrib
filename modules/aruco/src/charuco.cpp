@@ -53,7 +53,7 @@ using namespace std;
  */
 void CharucoBoard::draw(Size outSize, OutputArray _img, int marginSize, int borderBits) {
 
-    CV_Assert(outSize.area() > 0);
+    CV_Assert(!outSize.empty());
     CV_Assert(marginSize >= 0);
 
     _img.create(outSize, CV_8UC1);
@@ -194,7 +194,7 @@ void CharucoBoard::_getNearestMarkerCorners() {
             double sqDistance;
             Point3f distVector = charucoCorner - center;
             sqDistance = distVector.x * distVector.x + distVector.y * distVector.y;
-            if(j == 0 || fabs(sqDistance - minDist) < 0.0001) {
+            if(j == 0 || fabs(sqDistance - minDist) < cv::pow(0.01 * _squareLength, 2)) {
                 // if same minimum distance (or first iteration), add to nearestMarkerIdx vector
                 nearestMarkerIdx[i].push_back(j);
                 minDist = sqDistance;

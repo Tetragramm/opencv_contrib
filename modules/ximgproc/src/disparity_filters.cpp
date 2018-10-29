@@ -261,7 +261,7 @@ void DisparityWLSFilterImpl::filter_(InputArray disparity_map_left, InputArray l
         resize_factor = disparity_map_left.cols()/(float)left_view.cols();
     else
         resize_factor = 1.0;
-    if(ROI.area()!=0) /* user provided a ROI */
+    if(!ROI.empty()) /* user provided a ROI */
         valid_disp_ROI = ROI;
     else
         valid_disp_ROI = Rect(left_offset,top_offset,
@@ -480,7 +480,6 @@ Ptr<StereoMatcher> createRightMatcher(Ptr<StereoMatcher> matcher_left)
     else
     {
         CV_Error(Error::StsBadArg, "createRightMatcher supports only StereoBM and StereoSGBM");
-        return Ptr<StereoMatcher>();
     }
 }
 

@@ -380,12 +380,7 @@ void DISOpticalFlowImpl::precomputeStructureTensor(Mat &dst_I0xx, Mat &dst_I0yy,
         }
     }
 
-    AutoBuffer<float> sum_xx_buf(ws), sum_yy_buf(ws), sum_xy_buf(ws), sum_x_buf(ws), sum_y_buf(ws);
-    float *sum_xx = (float *)sum_xx_buf;
-    float *sum_yy = (float *)sum_yy_buf;
-    float *sum_xy = (float *)sum_xy_buf;
-    float *sum_x = (float *)sum_x_buf;
-    float *sum_y = (float *)sum_y_buf;
+    AutoBuffer<float> sum_xx(ws), sum_yy(ws), sum_xy(ws), sum_x(ws), sum_y(ws);
     for (int j = 0; j < ws; j++)
     {
         sum_xx[j] = 0.0f;
@@ -1316,7 +1311,8 @@ bool DISOpticalFlowImpl::ocl_calc(InputArray I0, InputArray I1, InputOutputArray
     else
         flow.create(I1Mat.size(), CV_32FC2);
     UMat &u_flowMat = flow.getUMatRef();
-    coarsest_scale = (int)(log((2 * I0Mat.cols) / (4.0 * patch_size)) / log(2.0) + 0.5) - 1;
+    coarsest_scale = min((int)(log(max(I0Mat.cols, I0Mat.rows) / (4.0 * patch_size)) / log(2.0) + 0.5), /* Original code serach for maximal movement of width/4 */
+                         (int)(log(min(I0Mat.cols, I0Mat.rows) / patch_size) / log(2.0)));              /* Deepest pyramid level greater or equal than patch*/
 
     ocl_prepareBuffers(I0Mat, I1Mat, u_flowMat, use_input_flow);
     u_Ux[coarsest_scale].setTo(0.0f);
@@ -1382,7 +1378,8 @@ void DISOpticalFlowImpl::calc(InputArray I0, InputArray I1, InputOutputArray flo
     else
         flow.create(I1Mat.size(), CV_32FC2);
     Mat flowMat = flow.getMat();
-    coarsest_scale = (int)(log((2 * I0Mat.cols) / (4.0 * patch_size)) / log(2.0) + 0.5) - 1;
+    coarsest_scale = min((int)(log(max(I0Mat.cols, I0Mat.rows) / (4.0 * patch_size)) / log(2.0) + 0.5), /* Original code serach for maximal movement of width/4 */
+                         (int)(log(min(I0Mat.cols, I0Mat.rows) / patch_size) / log(2.0)));              /* Deepest pyramid level greater or equal than patch*/
     int num_stripes = getNumThreads();
 
     prepareBuffers(I0Mat, I1Mat, flowMat, use_input_flow);

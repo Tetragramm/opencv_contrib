@@ -138,7 +138,7 @@ class CV_EXPORTS_W Dictionary {
  * - DICT_ARUCO_ORIGINAL: standard ArUco Library Markers. 1024 markers, 5x5 bits, 0 minimum
                           distance
  */
-enum CV_EXPORTS_W_SIMPLE PREDEFINED_DICTIONARY_NAME {
+enum PREDEFINED_DICTIONARY_NAME {
     DICT_4X4_50 = 0,
     DICT_4X4_100,
     DICT_4X4_250,
@@ -155,7 +155,11 @@ enum CV_EXPORTS_W_SIMPLE PREDEFINED_DICTIONARY_NAME {
     DICT_7X7_100,
     DICT_7X7_250,
     DICT_7X7_1000,
-    DICT_ARUCO_ORIGINAL
+    DICT_ARUCO_ORIGINAL,
+    DICT_APRILTAG_16h5,     ///< 4x4 bits, minimum hamming distance between any two codes = 5, 30 codes
+    DICT_APRILTAG_25h9,     ///< 5x5 bits, minimum hamming distance between any two codes = 9, 35 codes
+    DICT_APRILTAG_36h10,    ///< 6x6 bits, minimum hamming distance between any two codes = 10, 2320 codes
+    DICT_APRILTAG_36h11     ///< 6x6 bits, minimum hamming distance between any two codes = 11, 587 codes
 };
 
 

@@ -1513,6 +1513,8 @@ public:
     float scale_model_max_area;
     float scale_lr;
     float scale_step;
+
+    float psr_threshold; //!< we lost the target, if the psr is lower than this.
   };
 
   /** @brief Constructor
@@ -1522,7 +1524,7 @@ public:
 
   CV_WRAP static Ptr<TrackerCSRT> create();
 
-  virtual void setInitialMask(const Mat mask) = 0;
+  CV_WRAP virtual void setInitialMask(InputArray mask) = 0;
 
   virtual ~TrackerCSRT() CV_OVERRIDE {}
 };

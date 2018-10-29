@@ -278,7 +278,7 @@ bool ocl_getAllDCTDescriptorsForImage( const Mat *imgCh, std::vector< GPCPatchDe
            (int)globSize[0], (int)globSize[1], (int)patchRadius )
     .run( 2, globSize, 0, true ) == false )
     return false;
-  Mat cpuOut = out.getMat( 0 );
+  Mat cpuOut = out.getMat( ACCESS_READ );
   for ( int i = 0; i + 2 * patchRadius < sz.height; ++i )
     for ( int j = 0; j + 2 * patchRadius < sz.width; ++j )
       descr.push_back( *cpuOut.ptr< GPCPatchDescriptor >( i * globSize[1] + j ) );
@@ -292,7 +292,7 @@ void getAllDCTDescriptorsForImage( const Mat *imgCh, std::vector< GPCPatchDescri
   const Size sz = imgCh[0].size();
   descr.reserve( ( sz.height - 2 * patchRadius ) * ( sz.width - 2 * patchRadius ) );
 
-  (void)mp; // Fix unused parameter warning in case OpenCL is not available
+  CV_UNUSED(mp); // Fix unused parameter warning in case OpenCL is not available
   CV_OCL_RUN( mp.useOpenCL, ocl_getAllDCTDescriptorsForImage( imgCh, descr ) )
 
   descr.resize( ( sz.height - 2 * patchRadius ) * ( sz.width - 2 * patchRadius ) );
