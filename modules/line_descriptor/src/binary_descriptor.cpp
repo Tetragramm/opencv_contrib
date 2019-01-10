@@ -548,7 +548,7 @@ void BinaryDescriptor::computeImpl( const Mat& imageSrc, std::vector<KeyLine>& k
   if( imageSrc.channels() != 1 )
     cvtColor( imageSrc, image, COLOR_BGR2GRAY );
   else
-    image = imageSrc.clone();
+    image = imageSrc;
 
   /*check whether image's depth is different from 0 */
   if( image.depth() != 0 )
@@ -625,11 +625,11 @@ void BinaryDescriptor::computeImpl( const Mat& imageSrc, std::vector<KeyLine>& k
   /* delete useless OctaveSingleLines */
   for ( size_t i = 0; i < sl.size(); i++ )
   {
-    for ( size_t j = 0; j < sl[i].size(); j++ )
+    for ( size_t j = 0; j < sl[i].size(); )
     {
-      //if( (int) ( sl[i][j] ).octaveCount > params.numOfOctave_ )
       if( (int) ( sl[i][j] ).octaveCount > octaveIndex )
         ( sl[i] ).erase( ( sl[i] ).begin() + j );
+      else j++;
     }
   }
 

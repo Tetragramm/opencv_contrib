@@ -75,20 +75,20 @@ namespace ximgproc
     {
     public:
 
-        static Ptr<FastBilateralSolverFilterImpl> create(InputArray guide, double sigma_spatial, double sigma_luma, double sigma_chroma, int num_iter, double max_tol)
+        static Ptr<FastBilateralSolverFilterImpl> create(InputArray guide, double sigma_spatial, double sigma_luma, double sigma_chroma, double lambda, int num_iter, double max_tol)
         {
             CV_Assert(guide.type() == CV_8UC1 || guide.type() == CV_8UC3);
             FastBilateralSolverFilterImpl *fbs = new FastBilateralSolverFilterImpl();
             Mat gui = guide.getMat();
-            fbs->init(gui,sigma_spatial,sigma_luma,sigma_chroma,num_iter,max_tol);
+            fbs->init(gui,sigma_spatial,sigma_luma,sigma_chroma,lambda,num_iter,max_tol);
             return Ptr<FastBilateralSolverFilterImpl>(fbs);
         }
 
         void filter(InputArray src, InputArray confidence, OutputArray dst) CV_OVERRIDE
         {
 
-            CV_Assert(!src.empty() && (src.depth() == CV_8U || src.depth() == CV_16S || src.depth() == CV_32F) && src.channels()<=4);
-            CV_Assert(!confidence.empty() && (confidence.depth() == CV_8U || confidence.depth() == CV_16S || confidence.depth() == CV_32F) && confidence.channels()==1);
+            CV_Assert(!src.empty() && (src.depth() == CV_8U || src.depth() == CV_16S || src.depth() == CV_16U || src.depth() == CV_32F) && src.channels()<=4);
+            CV_Assert(!confidence.empty() && (confidence.depth() == CV_8U || confidence.depth() == CV_32F) && confidence.channels()==1);
             if (src.rows() != rows || src.cols() != cols)
             {
                 CV_Error(Error::StsBadSize, "Size of the filtered image must be equal to the size of the guide image");
@@ -108,14 +108,10 @@ namespace ximgproc
                 split(src,src_channels);
 
             Mat conf = confidence.getMat();
-            if(conf.depth() != CV_8UC1)
-                conf.convertTo(conf, CV_8UC1);
 
             for(int i=0;i<src.channels();i++)
             {
                 Mat cur_res = src_channels[i].clone();
-                if(src.depth() != CV_8UC1)
-                    cur_res.convertTo(cur_res, CV_8UC1);
 
                 solve(cur_res,conf,cur_res);
                 cur_res.convertTo(cur_res, src.type());
@@ -135,7 +131,7 @@ namespace ximgproc
 
     // protected:
         void solve(cv::Mat& src, cv::Mat& confidence, cv::Mat& dst);
-        void init(cv::Mat& reference, double sigma_spatial, double sigma_luma, double sigma_chroma, int num_iter, double max_tol);
+        void init(cv::Mat& reference, double sigma_spatial, double sigma_luma, double sigma_chroma, double lambda, int num_iter, double max_tol);
 
         void Splat(Eigen::VectorXf& input, Eigen::VectorXf& dst);
         void Blur(Eigen::VectorXf& input, Eigen::VectorXf& dst);
@@ -167,7 +163,6 @@ namespace ximgproc
         Eigen::SparseMatrix<float, Eigen::ColMajor> S;
         Eigen::SparseMatrix<float, Eigen::ColMajor> Dn;
         Eigen::SparseMatrix<float, Eigen::ColMajor> Dm;
-        cv::Mat guide;
 
         struct grid_params
         {
@@ -177,8 +172,8 @@ namespace ximgproc
             grid_params()
             {
                 spatialSigma = 8.0;
-                lumaSigma = 4.0;
-                chromaSigma = 4.0;
+                lumaSigma = 8.0;
+                chromaSigma = 8.0;
             }
         };
 
@@ -204,10 +199,10 @@ namespace ximgproc
 
 
 
-    void FastBilateralSolverFilterImpl::init(cv::Mat& reference, double sigma_spatial, double sigma_luma, double sigma_chroma, int num_iter, double max_tol)
+    void FastBilateralSolverFilterImpl::init(cv::Mat& reference, double sigma_spatial, double sigma_luma, double sigma_chroma, double lambda, int num_iter, double max_tol)
     {
-        guide = reference.clone();
 
+        bs_param.lam = lambda;
         bs_param.cg_maxiter = num_iter;
         bs_param.cg_tol = max_tol;
 
@@ -270,7 +265,6 @@ namespace ximgproc
 
             // construct Blur matrices
             Eigen::VectorXf ones_nvertices = Eigen::VectorXf::Ones(nvertices);
-            Eigen::VectorXf ones_npixels = Eigen::VectorXf::Ones(npixels);
             diagonal(ones_nvertices,blurs);
             blurs *= 10;
             for(int offset = -1; offset <= 1;++offset)
@@ -383,7 +377,6 @@ namespace ximgproc
 
             // construct Blur matrices
             Eigen::VectorXf ones_nvertices = Eigen::VectorXf::Ones(nvertices);
-            Eigen::VectorXf ones_npixels = Eigen::VectorXf::Ones(npixels);
             diagonal(ones_nvertices,blurs);
             blurs *= 10;
             for(int offset = -1; offset <= 1;++offset)
@@ -479,45 +472,77 @@ namespace ximgproc
         Eigen::VectorXf y1(nvertices);
         Eigen::VectorXf w_splat(nvertices);
 
-        cv::Mat x;
-        cv::Mat w;
-        cv::Mat xw;
-        cv::Mat filtered_xw;
-        cv::Mat filtered_w;
-        cv::Mat filtered_disp;
-        float fgs_colorSigma = 1.5;
-        float fgs_spatialSigma = 2000;
-	      target.convertTo(x, CV_32FC1, 1.0f/255.0f);
-	      confidence.convertTo(w, CV_32FC1);
-        xw = x.mul(w);
-        cv::ximgproc::fastGlobalSmootherFilter(guide, xw, filtered_xw, fgs_spatialSigma, fgs_colorSigma);
-        cv::ximgproc::fastGlobalSmootherFilter(guide, w, filtered_w, fgs_spatialSigma, fgs_colorSigma);
-        cv::divide(filtered_xw, filtered_w, filtered_disp, 1.0f, CV_32FC1);
+        Eigen::VectorXf x(npixels);
+        Eigen::VectorXf w(npixels);
 
+        if(target.depth() == CV_16S)
+        {
+            const int16_t *pft = reinterpret_cast<const int16_t*>(target.data);
+            for (int i = 0; i < npixels; i++)
+            {
+                x(i) = (cv::saturate_cast<float>(pft[i])+32768.0f)/65535.0f;
+            }
+        }
+        else if(target.depth() == CV_16U)
+        {
+            const uint16_t *pft = reinterpret_cast<const uint16_t*>(target.data);
+            for (int i = 0; i < npixels; i++)
+            {
+                x(i) = cv::saturate_cast<float>(pft[i])/65535.0f;
+            }
+        }
+        else if(target.depth() == CV_8U)
+        {
+            const uchar *pft = reinterpret_cast<const uchar*>(target.data);
+            for (int i = 0; i < npixels; i++)
+            {
+                x(i) = cv::saturate_cast<float>(pft[i])/255.0f;
+            }
+        }
+        else if(target.depth() == CV_32F)
+        {
+            const float *pft = reinterpret_cast<const float*>(target.data);
+            for (int i = 0; i < npixels; i++)
+            {
+                x(i) = pft[i];
+            }
+        }
+
+        if(confidence.depth() == CV_8U)
+        {
+            const uchar *pfc = reinterpret_cast<const uchar*>(confidence.data);
+            for (int i = 0; i < npixels; i++)
+            {
+                w(i) = cv::saturate_cast<float>(pfc[i])/255.0f;
+            }
+        }
+        else if(confidence.depth() == CV_32F)
+        {
+            const float *pfc = reinterpret_cast<const float*>(confidence.data);
+            for (int i = 0; i < npixels; i++)
+            {
+                w(i) = pfc[i];
+            }
+        }
 
         //construct A
-        w_splat.setZero();
-        const float *pfw = reinterpret_cast<const float*>(w.data);
-        for (int i = 0; i < int(splat_idx.size()); i++)
-        {
-            w_splat(splat_idx[i]) += pfw[i]/255.0f;
-        }
+        Splat(w,w_splat);
+
         diagonal(w_splat,A_data);
         A = bs_param.lam * (Dm - Dn * (blurs*Dn)) + A_data ;
 
         //construct b
         b.setZero();
-        const float *pfx = reinterpret_cast<const float*>(filtered_disp.data);
         for (int i = 0; i < int(splat_idx.size()); i++)
         {
-            b(splat_idx[i]) += pfx[i]*pfw[i]/255.0f;
+            b(splat_idx[i]) += x(i) * w(i);
         }
 
         //construct guess for y
         y0.setZero();
         for (int i = 0; i < int(splat_idx.size()); i++)
         {
-            y0(splat_idx[i]) += pfx[i];
+            y0(splat_idx[i]) += x(i);
         }
         y1.setZero();
         for (int i = 0; i < int(splat_idx.size()); i++)
@@ -541,10 +566,37 @@ namespace ximgproc
         std::cout << "estimated error: " << cg.error()      << std::endl;
 
         //slice
-        uchar *pftar = (uchar*)(output.data);
-        for (int i = 0; i < int(splat_idx.size()); i++)
+        if(target.depth() == CV_16S)
         {
-            pftar[i] = uchar(y(splat_idx[i]) * 255.0f);
+            int16_t *pftar = (int16_t*) output.data;
+            for (int i = 0; i < int(splat_idx.size()); i++)
+            {
+                pftar[i] = cv::saturate_cast<short>(y(splat_idx[i]) * 65535.0f - 32768.0f);
+            }
+        }
+        else if(target.depth() == CV_16U)
+        {
+            uint16_t *pftar = (uint16_t*) output.data;
+            for (int i = 0; i < int(splat_idx.size()); i++)
+            {
+                pftar[i] = cv::saturate_cast<ushort>(y(splat_idx[i]) * 65535.0f);
+            }
+        }
+        else if (target.depth() == CV_8U)
+        {
+            uchar *pftar = (uchar*) output.data;
+            for (int i = 0; i < int(splat_idx.size()); i++)
+            {
+                pftar[i] = cv::saturate_cast<uchar>(y(splat_idx[i]) * 255.0f);
+            }
+        }
+        else
+        {
+            float *pftar = (float*)(output.data);
+            for (int i = 0; i < int(splat_idx.size()); i++)
+            {
+                pftar[i] = y(splat_idx[i]);
+            }
         }
 
 
@@ -553,14 +605,14 @@ namespace ximgproc
 
 ////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////
-Ptr<FastBilateralSolverFilter> createFastBilateralSolverFilter(InputArray guide, double sigma_spatial, double sigma_luma, double sigma_chroma, int num_iter, double max_tol)
+Ptr<FastBilateralSolverFilter> createFastBilateralSolverFilter(InputArray guide, double sigma_spatial, double sigma_luma, double sigma_chroma, double lambda, int num_iter, double max_tol)
 {
-    return Ptr<FastBilateralSolverFilter>(FastBilateralSolverFilterImpl::create(guide, sigma_spatial, sigma_luma, sigma_chroma, num_iter, max_tol));
+    return Ptr<FastBilateralSolverFilter>(FastBilateralSolverFilterImpl::create(guide, sigma_spatial, sigma_luma, sigma_chroma, lambda, num_iter, max_tol));
 }
 
-void fastBilateralSolverFilter(InputArray guide, InputArray src, InputArray confidence, OutputArray dst, double sigma_spatial, double sigma_luma, double sigma_chroma, int num_iter, double max_tol)
+void fastBilateralSolverFilter(InputArray guide, InputArray src, InputArray confidence, OutputArray dst, double sigma_spatial, double sigma_luma, double sigma_chroma, double lambda, int num_iter, double max_tol)
 {
-    Ptr<FastBilateralSolverFilter> fbs = createFastBilateralSolverFilter(guide, sigma_spatial, sigma_luma, sigma_chroma, num_iter, max_tol);
+    Ptr<FastBilateralSolverFilter> fbs = createFastBilateralSolverFilter(guide, sigma_spatial, sigma_luma, sigma_chroma, lambda, num_iter, max_tol);
     fbs->filter(src, confidence, dst);
 }
 
@@ -575,12 +627,12 @@ namespace cv
 namespace ximgproc
 {
 
-Ptr<FastBilateralSolverFilter> createFastBilateralSolverFilter(InputArray, double, double, double, int, double)
+Ptr<FastBilateralSolverFilter> createFastBilateralSolverFilter(InputArray, double, double, double, double, int, double)
 {
     CV_Error(Error::StsNotImplemented, "createFastBilateralSolverFilter : needs to be compiled with EIGEN");
 }
 
-void fastBilateralSolverFilter(InputArray, InputArray, InputArray, OutputArray, double, double, double, int, double)
+void fastBilateralSolverFilter(InputArray, InputArray, InputArray, OutputArray, double, double, double, double, int, double)
 {
     CV_Error(Error::StsNotImplemented, "fastBilateralSolverFilter : needs to be compiled with EIGEN");
 }

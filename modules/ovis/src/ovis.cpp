@@ -10,6 +10,7 @@
 #include <OgreCompositorManager.h>
 
 #include <opencv2/calib3d.hpp>
+#include <opencv2/core/utils/configuration.private.hpp>
 
 namespace cv
 {
@@ -43,8 +44,14 @@ void _createTexture(const String& name, Mat image)
     case CV_8UC1:
         format = PF_BYTE_L;
         break;
+    case CV_16UC1:
+        format = PF_L16;
+        break;
+    case CV_32FC1:
+        format = PF_FLOAT32_R;
+        break;
     default:
-        CV_Error(Error::StsBadArg, "currently only CV_8UC1, CV_8UC3, CV_8UC4 textures are supported");
+        CV_Error(Error::StsBadArg, "currently supported formats are only CV_8UC1, CV_8UC3, CV_8UC4, CV_16UC1, CV_32FC1");
         break;
     }
 
@@ -142,7 +149,7 @@ static SceneNode& _getSceneNode(SceneManager* sceneMgr, const String& name)
         if(mo)
             return *mo->getParentSceneNode()->getParentSceneNode();
     }
-    catch (ItemIdentityException&)
+    catch (const ItemIdentityException&)
     {
         // ignore
     }
@@ -152,7 +159,7 @@ static SceneNode& _getSceneNode(SceneManager* sceneMgr, const String& name)
         if (!mo)
             mo = sceneMgr->getMovableObject(name, "Light");
     }
-    catch (ItemIdentityException&)
+    catch (const ItemIdentityException&)
     {
         // ignore
     }
@@ -177,6 +184,10 @@ struct Application : public OgreBites::ApplicationContext, public OgreBites::Inp
         : OgreBites::ApplicationContext("ovis", false), sceneMgr(NULL), title(_title), w(sz.width),
           h(sz.height), key_pressed(-1), flags(_flags)
     {
+        if(utils::getConfigurationParameterBool("OPENCV_OVIS_VERBOSE_LOG", false))
+            return;
+
+        // set default log with low log level
         logMgr.reset(new LogManager());
         logMgr->createLog("ovis.log", true, true, true);
         logMgr->setLogDetail(LL_LOW);
@@ -195,8 +206,9 @@ struct Application : public OgreBites::ApplicationContext, public OgreBites::Inp
 
     bool oneTimeConfig() CV_OVERRIDE
     {
-        Ogre::RenderSystem* rs = getRoot()->getRenderSystemByName(RENDERSYSTEM_NAME);
-        CV_Assert(rs);
+        Ogre::String rsname = utils::getConfigurationParameterString("OPENCV_OVIS_RENDERSYSTEM", RENDERSYSTEM_NAME);
+        Ogre::RenderSystem* rs = getRoot()->getRenderSystemByName(rsname);
+        CV_Assert(rs && "Could not find rendersystem");
         getRoot()->setRenderSystem(rs);
         return true;
     }
@@ -223,6 +235,8 @@ struct Application : public OgreBites::ApplicationContext, public OgreBites::Inp
 
         return ret;
     }
+
+    size_t numWindows() const { return mWindows.size(); }
 
     void locateResources() CV_OVERRIDE
     {
@@ -265,9 +279,10 @@ class WindowSceneImpl : public WindowScene
     Ptr<Rectangle2D> bgplane;
 
     Ogre::RenderTarget* depthRTT;
+    int flags;
 public:
-    WindowSceneImpl(Ptr<Application> app, const String& _title, const Size& sz, int flags)
-        : title(_title), root(app->getRoot()), depthRTT(NULL)
+    WindowSceneImpl(Ptr<Application> app, const String& _title, const Size& sz, int _flags)
+        : title(_title), root(app->getRoot()), depthRTT(NULL), flags(_flags)
     {
         if (!app->sceneMgr)
         {
@@ -304,7 +319,11 @@ public:
         {
             camman.reset(new OgreBites::CameraMan(camNode));
             camman->setStyle(OgreBites::CS_ORBIT);
-            camNode->setFixedYawAxis(true, Vector3::NEGATIVE_UNIT_Y);
+#if OGRE_VERSION >= ((1 << 16) | (11 << 8) | 5)
+            camman->setFixedYaw(false);
+#else
+            camNode->setFixedYawAxis(true, Vector3::NEGATIVE_UNIT_Y); // OpenCV +Y in Ogre CS
+#endif
         }
 
         if (!app->sceneMgr)
@@ -323,6 +342,33 @@ public:
         }
 
         rWin->addViewport(cam);
+    }
+
+    ~WindowSceneImpl()
+    {
+        if (flags & SCENE_SEPERATE)
+        {
+            TextureManager& texMgr =  TextureManager::getSingleton();
+
+            MaterialManager::getSingleton().remove(bgplane->getMaterial());
+            bgplane.release();
+            String texName = "_"+sceneMgr->getName() + "_DefaultBackground";
+            texMgr.remove(texName, RESOURCEGROUP_NAME);
+
+            texName = sceneMgr->getName() + "_Background";
+            if(texMgr.resourceExists(texName, RESOURCEGROUP_NAME))
+            {
+                texMgr.remove(texName, RESOURCEGROUP_NAME);
+            }
+        }
+
+        if(_app->sceneMgr == sceneMgr && (flags & SCENE_SEPERATE))
+        {
+            // this is the root window owning the context
+            CV_Assert(_app->numWindows() == 1 && "the first OVIS window must be deleted last");
+            _app->closeApp();
+            _app.release();
+        }
     }
 
     void setBackground(InputArray image) CV_OVERRIDE
@@ -388,11 +434,18 @@ public:
         int dst_type;
         switch(src_type)
         {
+        case PF_R8:
+        case PF_L8:
+            dst_type = CV_8U;
+            break;
         case PF_BYTE_RGB:
             dst_type = CV_8UC3;
             break;
         case PF_BYTE_RGBA:
             dst_type = CV_8UC4;
+            break;
+        case PF_FLOAT32_R:
+            dst_type = CV_32F;
             break;
         case PF_FLOAT32_RGB:
             dst_type = CV_32FC3;
@@ -400,7 +453,8 @@ public:
         case PF_FLOAT32_RGBA:
             dst_type = CV_32FC4;
             break;
-        case PF_DEPTH16:
+        case PF_L16:
+        case PF_DEPTH:
             dst_type = CV_16U;
             break;
         default:
@@ -549,6 +603,35 @@ public:
         node.setScale(value[0], value[1], value[2]);
     }
 
+    void getEntityProperty(const String& name, int prop, OutputArray value)
+    {
+        SceneNode& node = _getSceneNode(sceneMgr, name);
+        switch(prop)
+        {
+        case ENTITY_SCALE:
+        {
+            Vector3 s = node.getScale();
+            Mat_<Real>(1, 3, s.ptr()).copyTo(value);
+            return;
+        }
+        case ENTITY_AABB_WORLD:
+        {
+            Entity* ent = dynamic_cast<Entity*>(node.getAttachedObject(name));
+            CV_Assert(ent && "invalid entity");
+            AxisAlignedBox aabb = ent->getWorldBoundingBox(true);
+            Vector3 mn = aabb.getMinimum();
+            Vector3 mx = aabb.getMaximum();
+            Mat_<Real> ret(2, 3);
+            Mat_<Real>(1, 3, mn.ptr()).copyTo(ret.row(0));
+            Mat_<Real>(1, 3, mx.ptr()).copyTo(ret.row(1));
+            ret.copyTo(value);
+            return;
+        }
+        default:
+            CV_Error(Error::StsBadArg, "unsupported property");
+        }
+    }
+
     void _createBackground()
     {
         String name = "_" + sceneMgr->getName() + "_DefaultBackground";
@@ -623,6 +706,10 @@ public:
 
     void fixCameraYawAxis(bool useFixed, InputArray _up) CV_OVERRIDE
     {
+#if OGRE_VERSION >= ((1 << 16) | (11 << 8) | 5)
+        if(camman) camman->setFixedYaw(useFixed);
+#endif
+
         Vector3 up = Vector3::NEGATIVE_UNIT_Y;
         if (!_up.empty())
         {
