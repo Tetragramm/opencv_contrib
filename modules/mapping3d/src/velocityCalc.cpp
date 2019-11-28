@@ -89,7 +89,7 @@ namespace cv
 
                 b.at< double >( i ) = ( F( Rect( 0, i, 3, 1 ) ) * positions[i] ).operator Mat().at< double >( 0 );
                 b.at< double >( num + i ) = ( F( Rect( 0, num + i, 3, 1 ) ) * positions[i] ).operator Mat().at< double
-                >( 0 );
+                                >( 0 );
             }
             Mat iple;
             solve( F, b, iple, DECOMP_SVD );
@@ -179,7 +179,7 @@ namespace cv
             else
                 Rodrigues( rvec, camera_rotation );
 
-            if(tvec.rows == 1)
+            if ( tvec.rows == 1 )
                 tvec = tvec.t();
 
             camera_rotation = camera_rotation.t();
@@ -193,6 +193,11 @@ namespace cv
             const Mat zero_pos = Mat::zeros( 3, 1, CV_64F );
             const Point2d azel = getAzEl( zero_pos, los );
             angles.push_back( azel );
+            if ( angles.size() > limit )
+            {
+                positions.pop_front();
+                angles.pop_front();
+            }
         }
 
         Ptr< VelocityCalculator > VelocityCalculator::create()
@@ -251,9 +256,9 @@ namespace cv
                 if ( dist_m.size() == tvecs.size() )
                     dist = dist_m[i];
                 p_vc->addMeasurement( tvecs[i], rvecs[i], pts.at< Point2f >( i ), times.at< double >( i ), camera
-                                     , dist );
+                                      , dist );
             }
             p_vc->computeState( calcTime, _state, _covariance );
         }
-    }/* namespace mapping3d */
+    } /* namespace mapping3d */
 }/* namespace cv */

@@ -81,7 +81,7 @@ namespace cv
 
                 b.at< double >( i ) = ( F( Rect( 0, i, 3, 1 ) ) * positions[i] ).operator Mat().at< double >( 0 );
                 b.at< double >( num + i ) = ( F( Rect( 0, num + i, 3, 1 ) ) * positions[i] ).operator Mat().at< double
-                >( 0 );
+                                >( 0 );
             }
 
             Mat iple;
@@ -159,7 +159,7 @@ namespace cv
             else
                 Rodrigues( rvec, camera_rotation );
 
-            if(tvec.rows == 1)
+            if ( tvec.rows == 1 )
                 tvec = tvec.t();
 
             camera_rotation = camera_rotation.t();
@@ -171,6 +171,11 @@ namespace cv
             zero_pos.setTo( 0 );
             const Point2d azel = getAzEl( zero_pos, los );
             angles.push_back( azel );
+            if ( angles.size() > limit )
+            {
+                positions.pop_front();
+                angles.pop_front();
+            }
         }
 
         Ptr< PositionCalculator > PositionCalculator::create()
@@ -230,5 +235,5 @@ namespace cv
             }
             p_pc->computeState( _state, _covariance );
         }
-    }/* namespace mapping3d */
+    } /* namespace mapping3d */
 }/* namespace cv */

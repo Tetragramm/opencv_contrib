@@ -143,6 +143,12 @@ namespace cv
 		*/
 		CV_EXPORTS_W void register3dPoints( InputArray pointsFound, InputArray pointsModel,
 											OutputArray tvec, OutputArray rvec );
+
+        /** @brief Calculate the relative locations of cameras with overlapping fields of view.
+         */
+        CV_EXPORTS_W void relativeCameras( InputArrayOfArrays _tvecs, InputArrayOfArrays _rvecs,
+            InputArrayOfArrays _cameraMatrices, InputArrayOfArrays _distortionMatrices,
+            OutputArrayOfArrays _final_tvecs, OutputArrayOfArrays _final_rvecs);
 		//! @}
     }
 }

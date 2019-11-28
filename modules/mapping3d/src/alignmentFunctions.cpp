@@ -41,16 +41,21 @@
 
 #include "mappingFuncs.hpp"
 
-cv::Point2d getAzEl(const cv::Mat& from, const cv::Mat& to)
+void cv::mapping3d::relativeCameras(InputArrayOfArrays _tvecs, InputArrayOfArrays _rvecs,
+    InputArrayOfArrays _cameraMatrices, InputArrayOfArrays _distortionMatrices,
+    OutputArrayOfArrays _final_tvecs, OutputArrayOfArrays _final_rvecs)
 {
-    cv::Point2d ret;
-    cv::Point3d diff;
-    diff.x = (to.at<double>(0) - from.at<double>(0));
-    diff.y = (to.at<double>(1) - from.at<double>(1));
-    diff.z = (to.at<double>(2) - from.at<double>(2));
-    ret.x = atan2(diff.y, diff.x);
-    ret.y = asin(diff.z / norm(diff));
-    return ret;
+    using std::vector;
+    vector<Mat> tvecs;
+	_tvecs.getMatVector( tvecs );
+	vector<Mat> rvecs;
+	_rvecs.getMatVector( rvecs );
+    vector<Mat> cameraMats;
+	_cameraMatrices.getMatVector( cameraMats );
+	vector<Mat> distortionMats;
+	_distortionMatrices.getMatVector( distortionMats );
+
+
 }
 
 //#endif

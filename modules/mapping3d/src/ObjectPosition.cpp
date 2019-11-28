@@ -120,7 +120,7 @@ namespace cv
 			vector<Mat> objPoints;
 			objectPoints.getMatVector( objPoints );
 
-			int numPoints = imagePointsPerView.total();
+		    const unsigned int numPoints = imagePointsPerView.total();
 			for( unsigned int i = 0; i < numPoints; i++ )
 			{
 				Mat points_mat = imagePointsPerView.getMat( i );
